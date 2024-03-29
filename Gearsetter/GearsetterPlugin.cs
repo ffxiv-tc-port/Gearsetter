@@ -16,10 +16,10 @@ using Lumina.Excel.GeneratedSheets;
 namespace Gearsetter;
 
 [SuppressMessage("ReSharper", "UnusedType.Global")]
-public class GearsetterPlugin : IDalamudPlugin
+public sealed class GearsetterPlugin : IDalamudPlugin
 {
     private static readonly InventoryType[] DefaultInventoryTypes =
-    {
+    [
         InventoryType.Inventory1,
         InventoryType.Inventory2,
         InventoryType.Inventory3,
@@ -35,8 +35,8 @@ public class GearsetterPlugin : IDalamudPlugin
         InventoryType.ArmoryNeck,
         InventoryType.ArmoryWrist,
         InventoryType.ArmoryRings,
-        InventoryType.EquippedItems,
-    };
+        InventoryType.EquippedItems
+    ];
 
     private readonly DalamudPluginInterface _pluginInterface;
     private readonly ICommandManager _commandManager;
@@ -53,6 +53,8 @@ public class GearsetterPlugin : IDalamudPlugin
     public GearsetterPlugin(DalamudPluginInterface pluginInterface, ICommandManager commandManager, IChatGui chatGui,
         IDataManager dataManager, IPluginLog pluginLog, IClientState clientState)
     {
+        ArgumentNullException.ThrowIfNull(dataManager);
+
         _pluginInterface = pluginInterface;
         _commandManager = commandManager;
         _chatGui = chatGui;
@@ -167,7 +169,9 @@ public class GearsetterPlugin : IDalamudPlugin
     private unsafe bool HandleGearset(RaptureGearsetModule.GearsetEntry* gearset, List<CachedItem> inventoryItems)
     {
         string name = GetGearsetName(gearset);
-        if (name.Contains('_') || name.Contains("Eureka") || name.Contains("Bozja"))
+        if (name.Contains('_', StringComparison.Ordinal) ||
+            name.Contains("Eureka", StringComparison.OrdinalIgnoreCase) ||
+            name.Contains("Bozja", StringComparison.OrdinalIgnoreCase))
             return false;
 
         List<List<SeString>> upgrades = new()

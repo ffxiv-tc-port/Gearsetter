@@ -109,7 +109,7 @@ internal sealed class CachedItem : IEquatable<CachedItem>
         Crit = 27,
         DirectHit = 22,
         Determination = 44,
-        SpellSpeed = 24,
+        SpellSpeed = 46,
 
         Craftsmanship = 70,
         Control = 71,

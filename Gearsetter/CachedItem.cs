@@ -32,7 +32,9 @@ internal sealed class CachedItem : IEquatable<CachedItem>
         }
         else
         {
-            if (ItemId == 33648 && level < 80)
+            if (ItemId == 41081 && level < 90)
+                return int.MaxValue;
+            else if (ItemId == 33648 && level < 80)
                 return int.MaxValue - 1;
             else if (ItemId == 24589 && level < 70)
                 return int.MaxValue - 2;

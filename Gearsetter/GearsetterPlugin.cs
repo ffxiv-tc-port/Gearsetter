@@ -6,11 +6,15 @@ using System.Text;
 using Dalamud.Game.Command;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
+using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
+using Gearsetter.GameData;
+using Gearsetter.Model;
+using Gearsetter.Windows;
 using Lumina.Excel.GeneratedSheets;
 
 namespace Gearsetter;
@@ -18,37 +22,19 @@ namespace Gearsetter;
 [SuppressMessage("ReSharper", "UnusedType.Global")]
 public sealed class GearsetterPlugin : IDalamudPlugin
 {
-    private static readonly InventoryType[] DefaultInventoryTypes =
-    [
-        InventoryType.Inventory1,
-        InventoryType.Inventory2,
-        InventoryType.Inventory3,
-        InventoryType.Inventory4,
-        InventoryType.ArmoryMainHand,
-        InventoryType.ArmoryOffHand,
-        InventoryType.ArmoryHead,
-        InventoryType.ArmoryBody,
-        InventoryType.ArmoryHands,
-        InventoryType.ArmoryLegs,
-        InventoryType.ArmoryFeets,
-        InventoryType.ArmoryEar,
-        InventoryType.ArmoryNeck,
-        InventoryType.ArmoryWrist,
-        InventoryType.ArmoryRings,
-        InventoryType.EquippedItems
-    ];
-
+    private readonly WindowSystem _windowSystem = new(nameof(GearsetterPlugin));
     private readonly DalamudPluginInterface _pluginInterface;
     private readonly ICommandManager _commandManager;
     private readonly IChatGui _chatGui;
     private readonly IDataManager _dataManager;
     private readonly IPluginLog _pluginLog;
     private readonly IClientState _clientState;
+    private readonly Configuration _configuration;
+    private readonly GameDataHolder _gameDataHolder;
+    private readonly EquipmentBrowserWindow _equipmentBrowserWindow;
 
     private readonly IReadOnlyDictionary<byte, DalamudLinkPayload> _linkPayloads;
-    private readonly Dictionary<uint, List<ClassJob>> _classJobCategories;
-    private readonly Dictionary<byte, byte> _classJobToArrayIndex;
-    private readonly Dictionary<uint, CachedItem> _cachedItems = new();
+    private readonly Dictionary<EClassJob, byte> _classJobToArrayIndex;
 
     public GearsetterPlugin(DalamudPluginInterface pluginInterface, ICommandManager commandManager, IChatGui chatGui,
         IDataManager dataManager, IPluginLog pluginLog, IClientState clientState)
@@ -62,63 +48,34 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         _pluginLog = pluginLog;
         _clientState = clientState;
 
-        _commandManager.AddHandler("/gup", new CommandInfo(ProcessCommand));
+        Configuration? configuration = (Configuration?)_pluginInterface.GetPluginConfig();
+        if (configuration == null)
+        {
+            configuration = Configuration.Create();
+            _pluginInterface.SavePluginConfig(configuration);
+        }
+
+        _configuration = configuration;
+        _gameDataHolder = new GameDataHolder(dataManager, _configuration);
+        _equipmentBrowserWindow = new EquipmentBrowserWindow(this, _gameDataHolder, _clientState, _chatGui);
+        _windowSystem.AddWindow(_equipmentBrowserWindow);
+
+        _commandManager.AddHandler("/gup", new CommandInfo(ShowUpgrades)
+        {
+            HelpMessage = "Show possible gear upgrades for all gearsets"
+        });
+        _commandManager.AddHandler("/gbrowser", new CommandInfo(ToggleEquipmentBrowser)
+        {
+            HelpMessage = "Toggle the equipment browser window"
+        });
         _linkPayloads = Enumerable.Range(0, 100)
             .ToDictionary(x => (byte)x, x => _pluginInterface.AddChatLinkHandler((byte)x, ChangeGearset)).AsReadOnly();
         _clientState.TerritoryChanged += TerritoryChanged;
+        _pluginInterface.UiBuilder.Draw += _windowSystem.Draw;
 
-        _classJobToArrayIndex = dataManager.GetExcelSheet<Lumina.Excel.GeneratedSheets.ClassJob>()!
-            .Where(x => x.RowId > 0)
-            .ToDictionary(x => (byte)x.RowId, x => (byte)x.ExpArrayIndex);
-        _classJobCategories = _dataManager.GetExcelSheet<ClassJobCategory>()!
-            .ToDictionary(x => x.RowId, x =>
-                new Dictionary<ClassJob, bool>
-                    {
-                        { ClassJob.Adventurer, x.ADV },
-                        { ClassJob.Gladiator, x.GLA },
-                        { ClassJob.Pugilist, x.PGL },
-                        { ClassJob.Marauder, x.MRD },
-                        { ClassJob.Lancer, x.LNC },
-                        { ClassJob.Archer, x.ARC },
-                        { ClassJob.Conjurer, x.CNJ },
-                        { ClassJob.Thaumaturge, x.THM },
-                        { ClassJob.Carpenter, x.CRP },
-                        { ClassJob.Blacksmith, x.BSM },
-                        { ClassJob.Armorer, x.ARM },
-                        { ClassJob.Goldsmith, x.GSM },
-                        { ClassJob.Leatherworker, x.LTW },
-                        { ClassJob.Weaver, x.WVR },
-                        { ClassJob.Alchemist, x.ALC },
-                        { ClassJob.Culinarian, x.CUL },
-                        { ClassJob.Miner, x.MIN },
-                        { ClassJob.Botanist, x.BTN },
-                        { ClassJob.Fisher, x.FSH },
-                        { ClassJob.Paladin, x.PLD },
-                        { ClassJob.Monk, x.MNK },
-                        { ClassJob.Warrior, x.WAR },
-                        { ClassJob.Dragoon, x.DRG },
-                        { ClassJob.Bard, x.BRD },
-                        { ClassJob.WhiteMage, x.WHM },
-                        { ClassJob.BlackMage, x.BLM },
-                        { ClassJob.Arcanist, x.ACN },
-                        { ClassJob.Summoner, x.SMN },
-                        { ClassJob.Scholar, x.SCH },
-                        { ClassJob.Rogue, x.ROG },
-                        { ClassJob.Ninja, x.NIN },
-                        { ClassJob.Machinist, x.MCH },
-                        { ClassJob.DarkKnight, x.DRK },
-                        { ClassJob.Astrologian, x.AST },
-                        { ClassJob.Samurai, x.SAM },
-                        { ClassJob.RedMage, x.RDM },
-                        { ClassJob.BlueMage, x.BLU },
-                        { ClassJob.Gunbreaker, x.GNB },
-                        { ClassJob.Dancer, x.DNC },
-                        { ClassJob.Reaper, x.RPR },
-                        { ClassJob.Sage, x.SGE },
-                    }
-                    .Where(y => y.Value)
-                    .Select(y => y.Key)
-                    .ToList());
+        _classJobToArrayIndex = dataManager.GetExcelSheet<ClassJob>()!
+            .Where(x => x.RowId > 0 && Enum.IsDefined(typeof(EClassJob), x.RowId))
+            .ToDictionary(x => (EClassJob)x.RowId, x => (byte)x.ExpArrayIndex);
     }
 
     private void TerritoryChanged(ushort territory)
@@ -127,26 +84,15 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             ShowUpgrades();
     }
 
-    private void ProcessCommand(string command, string arguments) => ShowUpgrades();
+
+    private void ToggleEquipmentBrowser(string command, string arguments)
+        => _equipmentBrowserWindow.Toggle();
+
+    private void ShowUpgrades(string command, string arguments) => ShowUpgrades();
 
     private unsafe void ShowUpgrades()
     {
-        var inventoryManager = InventoryManager.Instance();
-        List<CachedItem> inventoryItems = new();
-        foreach (var inventoryType in DefaultInventoryTypes)
-        {
-            var container = inventoryManager->GetInventoryContainer(inventoryType);
-            for (int i = 0; i < container->Size; ++i)
-            {
-                var item = container->GetInventorySlot(i);
-                if (item != null && item->ItemID != 0)
-                {
-                    CachedItem? cachedItem = LookupItem(item->ItemID, item->Flags.HasFlag(InventoryItem.ItemFlags.HQ));
-                    if (cachedItem != null)
-                        inventoryItems.Add(cachedItem);
-                }
-            }
-        }
+        var inventoryItems = GetAllInventoryItems();
 
         var gearsetModule = RaptureGearsetModule.Instance();
         if (gearsetModule == null)
@@ -166,7 +112,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             _chatGui.Print("All your gearsets are OK.");
     }
 
-    private unsafe bool HandleGearset(RaptureGearsetModule.GearsetEntry* gearset, List<CachedItem> inventoryItems)
+    private unsafe bool HandleGearset(RaptureGearsetModule.GearsetEntry* gearset,
+        Dictionary<(uint ItemId, bool Hq), int> inventoryItems)
     {
         string name = GetGearsetName(gearset);
         if (name.Contains('_', StringComparison.Ordinal) ||
@@ -176,19 +123,20 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
         List<List<SeString>> upgrades = new()
         {
-            HandleGearsetItem("Main Hand", gearset, gearset->MainHand, inventoryItems),
-            HandleGearsetItem("Off Hand", gearset, gearset->OffHand, inventoryItems),
+            HandleGearsetItem("Main Hand", gearset, [gearset->ItemsSpan[0]], inventoryItems, EEquipSlotCategory.None),
+            HandleOffHand(gearset, inventoryItems),
 
-            HandleGearsetItem("Head", gearset, gearset->Head, inventoryItems),
-            HandleGearsetItem("Body", gearset, gearset->Body, inventoryItems),
-            HandleGearsetItem("Hands", gearset, gearset->Hands, inventoryItems),
-            HandleGearsetItem("Legs", gearset, gearset->Legs, inventoryItems),
-            HandleGearsetItem("Feet", gearset, gearset->Feet, inventoryItems),
+            HandleGearsetItem("Head", gearset, [gearset->ItemsSpan[2]], inventoryItems, EEquipSlotCategory.Head),
+            HandleGearsetItem("Body", gearset, [gearset->ItemsSpan[3]], inventoryItems, EEquipSlotCategory.Body),
+            HandleGearsetItem("Hands", gearset, [gearset->ItemsSpan[4]], inventoryItems, EEquipSlotCategory.Hands),
+            HandleGearsetItem("Legs", gearset, [gearset->ItemsSpan[6]], inventoryItems, EEquipSlotCategory.Legs),
+            HandleGearsetItem("Feet", gearset, [gearset->ItemsSpan[7]], inventoryItems, EEquipSlotCategory.Feet),
 
-            HandleGearsetItem("Ears", gearset, gearset->Ears, inventoryItems),
-            HandleGearsetItem("Neck", gearset, gearset->Neck, inventoryItems),
-            HandleGearsetItem("Wrists", gearset, gearset->Wrists, inventoryItems),
-            HandleGearsetItem("Rings", gearset, new[] { gearset->RingRight, gearset->RingLeft }, inventoryItems),
+            HandleGearsetItem("Ears", gearset, [gearset->ItemsSpan[8]], inventoryItems, EEquipSlotCategory.Ears),
+            HandleGearsetItem("Neck", gearset, [gearset->ItemsSpan[9]], inventoryItems, EEquipSlotCategory.Neck),
+            HandleGearsetItem("Wrists", gearset, [gearset->ItemsSpan[10]], inventoryItems, EEquipSlotCategory.Wrists),
+            HandleGearsetItem("Rings", gearset, [gearset->ItemsSpan[11], gearset->ItemsSpan[12]], inventoryItems,
+                EEquipSlotCategory.Rings),
         };
 
         List<SeString> flatUpgrades = upgrades.SelectMany(x => x).ToList();
@@ -220,94 +168,133 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         => Encoding.UTF8.GetString(gearset->Name, 0x2F).Split((char)0)[0];
 
     private unsafe List<SeString> HandleGearsetItem(string label, RaptureGearsetModule.GearsetEntry* gearset,
-        RaptureGearsetModule.GearsetItem gearsetItem, List<CachedItem> inventoryItems)
-        => HandleGearsetItem(label, gearset, new[] { gearsetItem }, inventoryItems);
-
-    private unsafe List<SeString> HandleGearsetItem(string label, RaptureGearsetModule.GearsetEntry* gearset,
-        RaptureGearsetModule.GearsetItem[] gearsetItem, List<CachedItem> inventoryItems)
+        RaptureGearsetModule.GearsetItem[] gearsetItem, Dictionary<(uint ItemId, bool Hq), int> inventoryItems,
+        EEquipSlotCategory equipSlotCategory)
     {
-        gearsetItem = gearsetItem.Where(x => x.ItemID != 0).ToArray();
-        if (gearsetItem.Length > 0)
+        EClassJob classJob = (EClassJob)gearset->ClassJob;
+        var itemLists = _gameDataHolder.GetItemLists(classJob);
+
+        if (gearsetItem.Any(x => x.ItemID > 0))
         {
-            ClassJob classJob = (ClassJob)gearset->ClassJob;
-            CachedItem[] currentItems = gearsetItem.Select(x => LookupItem(x.ItemID)).Where(x => x != null)
-                .Select(x => x!).ToArray();
-            if (currentItems.Length == 0)
-            {
-                _pluginLog.Information($"Unable to find gearset items");
-                return new List<SeString>();
-            }
-
-            var level = PlayerState.Instance()->ClassJobLevelArray[
-                _classJobToArrayIndex[gearset->ClassJob]];
-
-            var bestItems = inventoryItems
-                .Where(x => x.EquipSlotCategory == currentItems[0].EquipSlotCategory)
-                .Where(x => x.Level <= level)
-                .Where(x => x.ClassJobs.Contains(classJob))
-                .Where(x => x.CalculateScore(classJob, level) > 0)
-                .OrderByDescending(x => x.CalculateScore(classJob, level))
-                .Take(gearsetItem.Length)
-                .ToList();
-            foreach (var currentItem in currentItems)
-            {
-                if (bestItems.Contains(currentItem))
-                    bestItems.Remove(currentItem);
-            }
-
-            // don't make suggestions for equal scores
-            bestItems.RemoveAll(x =>
-                x.CalculateScore(classJob, level) ==
-                currentItems.Select(y => y.CalculateScore(classJob, level)).Max());
-
-            return bestItems
-                .Select(x => new SeString(new TextPayload($"{label}: "))
-                    .Append(SeString.CreateItemLink(x.ItemId, x.Hq))).ToList();
+            var firstEquippedItem = gearsetItem.First(x => x.ItemID > 0);
+            equipSlotCategory = (EEquipSlotCategory)(_dataManager.GetExcelSheet<Item>()!
+                .GetRow(firstEquippedItem.ItemID % 1_000_000)
+                ?.EquipSlotCategory?.Row ?? 0);
         }
 
-        return new List<SeString>();
+        if (equipSlotCategory == EEquipSlotCategory.None)
+        {
+            _pluginLog.Warning($"Unable to find item to determine equip slot category");
+            return new List<SeString>();
+        }
+
+        EquipmentItem?[] currentItems = gearsetItem.Select(x => new
+            {
+                ItemId = x.ItemID % 1_000_000,
+                Hq = x.ItemID > 1_000_000
+            })
+            .Select(x =>
+            {
+                if (x.ItemId == 0)
+                    return null;
+
+                return itemLists
+                    .SelectMany(y => y.Items.Where(z => x.ItemId == z.ItemId && x.Hq == z.Hq))
+                    .FirstOrDefault();
+            })
+            .ToArray();
+
+        var availableList = _gameDataHolder.GetItemList(classJob, equipSlotCategory);
+        if (availableList == null)
+            return new List<SeString>();
+
+        var level = GetLevel(classJob);
+        var bestItems = availableList.Items
+            .Where(x => x.Level <= level)
+            .SelectMany(x =>
+            {
+                if (inventoryItems.TryGetValue((x.ItemId, x.Hq), out int count) && count > 0)
+                    return Enumerable.Repeat(x, count);
+                else
+                    return [];
+            })
+            .Take(gearsetItem.Length)
+            .ToList();
+        _pluginLog.Information(
+            $"{equipSlotCategory}: {string.Join("    ", currentItems.Select(x => $"{x?.ItemId}|{x?.Hq}"))}");
+        foreach (var currentItem in currentItems)
+        {
+            var foundIndex = bestItems.FindIndex(x =>
+                currentItem != null && currentItem.ItemId == x.ItemId && currentItem.Hq == x.Hq);
+            if (foundIndex >= 0)
+                bestItems.RemoveAt(foundIndex);
+        }
+
+        return bestItems
+            .Select(x => new SeString(new TextPayload($"{label}: "))
+                .Append(SeString.CreateItemLink(x.ItemId, x.Hq))).ToList();
     }
 
-    private CachedItem? LookupItem(uint itemId)
+
+    private unsafe List<SeString> HandleOffHand(RaptureGearsetModule.GearsetEntry* gearset,
+        Dictionary<(uint ItemId, bool Hq), int> inventoryItems)
     {
-        if (_cachedItems.TryGetValue(itemId, out CachedItem? cachedItem))
-            return cachedItem;
+        var mainHand = gearset->ItemsSpan[0];
+        if (mainHand.ItemID == 0)
+            return new List<SeString>();
 
-        try
-        {
-            var item = _dataManager.GetExcelSheet<Item>()!.GetRow(itemId % 1_000_000)!;
-            cachedItem = new CachedItem
-            {
-                Item = item,
-                ItemId = item.RowId,
-                Hq = itemId > 1_000_000,
-                Name = item.Name.ToString(),
-                Level = item.LevelEquip,
-                ItemLevel = item.LevelItem.Row,
-                Rarity = item.Rarity,
-                EquipSlotCategory = item.EquipSlotCategory.Row,
-                ClassJobs = _classJobCategories[item.ClassJobCategory.Row],
-            };
-            _cachedItems[itemId] = cachedItem;
-            return cachedItem;
-        }
-        catch (Exception)
-        {
-            _pluginLog.Information($"Unable to lookup item {itemId}");
-            return null;
-        }
+        // if it's a twohanded weapon, ignore it
+        EEquipSlotCategory equipSlotCategory =
+            (EEquipSlotCategory)(_dataManager.GetExcelSheet<Item>()!.GetRow(mainHand.ItemID % 1_000_000)?.RowId ?? 0);
+        if (equipSlotCategory != EEquipSlotCategory.OneHandedMainHand)
+            return new List<SeString>();
+
+        return HandleGearsetItem("Off Hand", gearset, [gearset->ItemsSpan[1]], inventoryItems,
+            EEquipSlotCategory.Shield);
     }
-
-    private CachedItem? LookupItem(uint itemId, bool hq)
-        => LookupItem(itemId + (hq ? 1_000_000u : 0));
 
     private unsafe void ChangeGearset(uint commandId, SeString seString)
         => RaptureGearsetModule.Instance()->EquipGearset((byte)commandId);
 
+    public unsafe Dictionary<(uint ItemId, bool Hq), int> GetAllInventoryItems()
+    {
+        Dictionary<(uint, bool), int> inventoryItems = new();
+        InventoryManager* inventoryManager = InventoryManager.Instance();
+        foreach (var inventoryType in _gameDataHolder.DefaultInventoryTypes)
+        {
+            var container = inventoryManager->GetInventoryContainer(inventoryType);
+            for (int i = 0; i < container->Size; ++i)
+            {
+                var item = container->GetInventorySlot(i);
+                if (item != null && item->ItemID != 0)
+                {
+                    var key = (item->ItemID, item->Flags.HasFlag(InventoryItem.ItemFlags.HQ));
+                    if (inventoryItems.TryGetValue(key, out var value))
+                        inventoryItems[key] = value + 1;
+                    else
+                        inventoryItems[key] = 1;
+                }
+            }
+        }
+
+        return inventoryItems;
+    }
+
+    internal unsafe byte GetLevel(EClassJob classJob)
+    {
+        var playerState = PlayerState.Instance();
+        if (playerState == null)
+            return 0;
+
+        return (byte)playerState->ClassJobLevelArray[_classJobToArrayIndex[classJob]];
+    }
+
     public void Dispose()
     {
+        _pluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
         _clientState.TerritoryChanged -= TerritoryChanged;
         _pluginInterface.RemoveChatLinkHandler();
+        _commandManager.RemoveHandler("/gbrowser");
         _commandManager.RemoveHandler("/gup");
     }
 }

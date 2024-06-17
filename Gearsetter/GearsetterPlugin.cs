@@ -86,6 +86,9 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
     private unsafe void TerritoryChanged(ushort territory)
     {
+        if (!_configuration.ShowRecommendationsWhenEnteringGcArea)
+            return;
+
         try
         {
             var playerState = PlayerState.Instance();

@@ -20,9 +20,18 @@ internal sealed record EquipmentItem(Item Item, bool Hq)
 
     public int PrimaryStat { get; init; } = -1;
 
-    public int Damage => ClassJob.DealsMagicDamage()
-        ? Item.DamageMag + Stats.Get(EBaseParam.DamageMag)
-        : Item.DamagePhys + Stats.Get(EBaseParam.DamagePhys);
+    public int Damage
+    {
+        get
+        {
+            if (ClassJob.DealsMagicDamage())
+                return Item.DamageMag + Stats.Get(EBaseParam.DamageMag);
+            else if (ClassJob.DealsPhysicalDamage())
+                return Item.DamagePhys + Stats.Get(EBaseParam.DamagePhys);
+            else
+                return 0;
+        }
+    }
 
     public bool HasAnyStat(params EBaseParam[] substats)
     {

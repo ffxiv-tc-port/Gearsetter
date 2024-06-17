@@ -16,6 +16,7 @@ using Gearsetter.GameData;
 using Gearsetter.Model;
 using Gearsetter.Windows;
 using Lumina.Excel.GeneratedSheets;
+using GrandCompany = FFXIVClientStructs.FFXIV.Client.UI.Agent.GrandCompany;
 
 namespace Gearsetter;
 
@@ -32,6 +33,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private readonly Configuration _configuration;
     private readonly GameDataHolder _gameDataHolder;
     private readonly EquipmentBrowserWindow _equipmentBrowserWindow;
+    private readonly ConfigWindow _configWindow;
 
     private readonly IReadOnlyDictionary<byte, DalamudLinkPayload> _linkPayloads;
     private readonly Dictionary<EClassJob, byte> _classJobToArrayIndex;
@@ -59,6 +61,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         _gameDataHolder = new GameDataHolder(dataManager, _configuration);
         _equipmentBrowserWindow = new EquipmentBrowserWindow(this, _gameDataHolder, _clientState, _chatGui);
         _windowSystem.AddWindow(_equipmentBrowserWindow);
+        _configWindow = new ConfigWindow(_pluginInterface, _configuration);
+        _windowSystem.AddWindow(_configWindow);
 
         _commandManager.AddHandler("/gup", new CommandInfo(ShowUpgrades)
         {
@@ -72,16 +76,32 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             .ToDictionary(x => (byte)x, x => _pluginInterface.AddChatLinkHandler((byte)x, ChangeGearset)).AsReadOnly();
         _clientState.TerritoryChanged += TerritoryChanged;
         _pluginInterface.UiBuilder.Draw += _windowSystem.Draw;
+        _pluginInterface.UiBuilder.OpenMainUi += _equipmentBrowserWindow.Toggle;
+        _pluginInterface.UiBuilder.OpenConfigUi += _configWindow.Toggle;
 
         _classJobToArrayIndex = dataManager.GetExcelSheet<ClassJob>()!
             .Where(x => x.RowId > 0 && Enum.IsDefined(typeof(EClassJob), x.RowId))
             .ToDictionary(x => (EClassJob)x.RowId, x => (byte)x.ExpArrayIndex);
     }
 
-    private void TerritoryChanged(ushort territory)
+    private unsafe void TerritoryChanged(ushort territory)
     {
-        if (territory == 128)
-            ShowUpgrades();
+        try
+        {
+            var playerState = PlayerState.Instance();
+            if (playerState == null)
+                return;
+
+            var grandCompany = (GrandCompany)playerState->GrandCompany;
+            if ((grandCompany == GrandCompany.Maelstrom && territory == 128) ||
+                (grandCompany == GrandCompany.TwinAdder && territory == 132) ||
+                (grandCompany == GrandCompany.ImmortalFlames && territory == 130))
+                ShowUpgrades();
+        }
+        catch (Exception e)
+        {
+            _pluginLog.Warning(e, "Could not show upgrades when entering Grand Company area.");
+        }
     }
 
 
@@ -312,6 +332,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
     public void Dispose()
     {
+        _pluginInterface.UiBuilder.OpenConfigUi -= _configWindow.Toggle;
+        _pluginInterface.UiBuilder.OpenMainUi -= _equipmentBrowserWindow.Toggle;
         _pluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
         _clientState.TerritoryChanged -= TerritoryChanged;
         _pluginInterface.RemoveChatLinkHandler();

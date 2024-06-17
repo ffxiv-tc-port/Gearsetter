@@ -8,6 +8,7 @@ internal sealed class Configuration : IPluginConfiguration
 {
     public int Version { get; set; } = 1;
 
+    public bool ShowRecommendationsWhenEnteringGcArea { get; set; } = true;
     public List<EBaseParam> StatPriorityTanks { get; set; } = new();
     public List<EBaseParam> StatPriorityHealer { get; set; } = new();
     public List<EBaseParam> StatPriorityMelee { get; set; } = new();

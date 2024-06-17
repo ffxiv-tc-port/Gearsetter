@@ -88,9 +88,15 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private void ToggleEquipmentBrowser(string command, string arguments)
         => _equipmentBrowserWindow.Toggle();
 
-    private void ShowUpgrades(string command, string arguments) => ShowUpgrades();
+    private void ShowUpgrades(string command, string arguments)
+    {
+        byte? level = null;
+        if (arguments.Length > 0 && byte.TryParse(arguments, out byte parsedLevel))
+            level = parsedLevel;
+        ShowUpgrades(level);
+    }
 
-    private unsafe void ShowUpgrades()
+    private unsafe void ShowUpgrades(byte? level = null)
     {
         var inventoryItems = GetAllInventoryItems();
 
@@ -98,13 +104,20 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         if (gearsetModule == null)
             return;
 
+        bool onlyCurrentJob = level != null;
+        if (onlyCurrentJob)
+            _chatGui.Print("Checking only gearsets for your current class/job...");
+
         bool anyUpgrade = false;
         for (int i = 0; i < 100; ++i)
         {
             var gearset = gearsetModule->GetGearset(i);
             if (gearset != null && gearset->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists))
             {
-                anyUpgrade |= HandleGearset(gearset, inventoryItems);
+                if (onlyCurrentJob && gearset->ClassJob != _clientState.LocalPlayer!.ClassJob.Id)
+                    continue;
+
+                anyUpgrade |= HandleGearset(gearset, inventoryItems, level);
             }
         }
 
@@ -113,7 +126,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     }
 
     private unsafe bool HandleGearset(RaptureGearsetModule.GearsetEntry* gearset,
-        Dictionary<(uint ItemId, bool Hq), int> inventoryItems)
+        Dictionary<(uint ItemId, bool Hq), int> inventoryItems, byte? level)
     {
         string name = GetGearsetName(gearset);
         if (name.Contains('_', StringComparison.Ordinal) ||
@@ -121,22 +134,27 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             name.Contains("Bozja", StringComparison.OrdinalIgnoreCase))
             return false;
 
+        List<SeString> Handle(string label, int[] spanIds, EEquipSlotCategory category)
+        {
+            return HandleGearsetItem(label, gearset, spanIds.Select(x => gearset->ItemsSpan[x]).ToArray(),
+                inventoryItems, category, level);
+        }
+
         List<List<SeString>> upgrades = new()
         {
-            HandleGearsetItem("Main Hand", gearset, [gearset->ItemsSpan[0]], inventoryItems, EEquipSlotCategory.None),
-            HandleOffHand(gearset, inventoryItems),
+            Handle("Main Hand", [0], EEquipSlotCategory.None),
+            HandleOffHand(gearset, inventoryItems, level),
 
-            HandleGearsetItem("Head", gearset, [gearset->ItemsSpan[2]], inventoryItems, EEquipSlotCategory.Head),
-            HandleGearsetItem("Body", gearset, [gearset->ItemsSpan[3]], inventoryItems, EEquipSlotCategory.Body),
-            HandleGearsetItem("Hands", gearset, [gearset->ItemsSpan[4]], inventoryItems, EEquipSlotCategory.Hands),
-            HandleGearsetItem("Legs", gearset, [gearset->ItemsSpan[6]], inventoryItems, EEquipSlotCategory.Legs),
-            HandleGearsetItem("Feet", gearset, [gearset->ItemsSpan[7]], inventoryItems, EEquipSlotCategory.Feet),
+            Handle("Head", [2], EEquipSlotCategory.Head),
+            Handle("Body", [3], EEquipSlotCategory.Body),
+            Handle("Hands", [4], EEquipSlotCategory.Hands),
+            Handle("Legs", [6], EEquipSlotCategory.Legs),
+            Handle("Feet", [7], EEquipSlotCategory.Feet),
 
-            HandleGearsetItem("Ears", gearset, [gearset->ItemsSpan[8]], inventoryItems, EEquipSlotCategory.Ears),
-            HandleGearsetItem("Neck", gearset, [gearset->ItemsSpan[9]], inventoryItems, EEquipSlotCategory.Neck),
-            HandleGearsetItem("Wrists", gearset, [gearset->ItemsSpan[10]], inventoryItems, EEquipSlotCategory.Wrists),
-            HandleGearsetItem("Rings", gearset, [gearset->ItemsSpan[11], gearset->ItemsSpan[12]], inventoryItems,
-                EEquipSlotCategory.Rings),
+            Handle("Ears", [8], EEquipSlotCategory.Ears),
+            Handle("Neck", [9], EEquipSlotCategory.Neck),
+            Handle("Wrists", [10], EEquipSlotCategory.Wrists),
+            Handle("Rings", [11, 12], EEquipSlotCategory.Rings),
         };
 
         List<SeString> flatUpgrades = upgrades.SelectMany(x => x).ToList();
@@ -152,6 +170,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
                 .Append(name)
                 .Add(RawPayload.LinkTerminator)
                 .AddUiForegroundOff()
+                .AddText(level != null ? $" at {level}" : "")
                 .Build());
 
         foreach (var upgrade in flatUpgrades)
@@ -169,7 +188,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
     private unsafe List<SeString> HandleGearsetItem(string label, RaptureGearsetModule.GearsetEntry* gearset,
         RaptureGearsetModule.GearsetItem[] gearsetItem, Dictionary<(uint ItemId, bool Hq), int> inventoryItems,
-        EEquipSlotCategory equipSlotCategory)
+        EEquipSlotCategory equipSlotCategory, byte? level)
     {
         EClassJob classJob = (EClassJob)gearset->ClassJob;
         var itemLists = _gameDataHolder.GetItemLists(classJob);
@@ -208,7 +227,9 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         if (availableList == null)
             return new List<SeString>();
 
-        var level = GetLevel(classJob);
+        if (level == null)
+            level = GetLevel(classJob);
+
         var bestItems = availableList.Items
             .Where(x => x.Level <= level)
             .SelectMany(x =>
@@ -237,7 +258,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
 
     private unsafe List<SeString> HandleOffHand(RaptureGearsetModule.GearsetEntry* gearset,
-        Dictionary<(uint ItemId, bool Hq), int> inventoryItems)
+        Dictionary<(uint ItemId, bool Hq), int> inventoryItems, byte? level)
     {
         var mainHand = gearset->ItemsSpan[0];
         if (mainHand.ItemID == 0)
@@ -250,7 +271,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             return new List<SeString>();
 
         return HandleGearsetItem("Off Hand", gearset, [gearset->ItemsSpan[1]], inventoryItems,
-            EEquipSlotCategory.Shield);
+            EEquipSlotCategory.Shield, level);
     }
 
     private unsafe void ChangeGearset(uint commandId, SeString seString)

@@ -47,6 +47,20 @@ internal enum EClassJob : uint
 
 internal static class EClassJobExtensions
 {
+    public static EClassJob AsJob(this EClassJob classJob) => classJob switch
+    {
+        EClassJob.Gladiator => EClassJob.Paladin,
+        EClassJob.Marauder => EClassJob.Warrior,
+        EClassJob.Pugilist => EClassJob.Monk,
+        EClassJob.Lancer => EClassJob.Dragoon,
+        EClassJob.Rogue => EClassJob.Ninja,
+        EClassJob.Archer => EClassJob.Bard,
+        EClassJob.Conjurer => EClassJob.WhiteMage,
+        EClassJob.Thaumaturge => EClassJob.BlackMage,
+        EClassJob.Arcanist => EClassJob.Summoner,
+        _ => classJob,
+    };
+
     public static bool IsTank(this EClassJob classJob) =>
         classJob is EClassJob.Gladiator
             or EClassJob.Paladin

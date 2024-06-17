@@ -33,16 +33,24 @@ internal sealed class EquipmentBrowserWindow : Window
 
     public EquipmentBrowserWindow(GearsetterPlugin plugin, GameDataHolder dataHolder, IClientState clientState,
         IChatGui chatGui)
-        : base("Equipment Browser")
+        : base("Equipment Browser###GearsetterBrowser")
     {
         _plugin = plugin;
         _dataHolder = dataHolder;
         _clientState = clientState;
         _chatGui = chatGui;
-        _classJobNames = dataHolder.ClassJobNames.Select(x => x.Name).ToArray();
-        _classJobIds = dataHolder.ClassJobNames.Select(x => x.ClassJob).ToArray();
+        _classJobNames = dataHolder.ClassJobNames
+            .Where(x => x.ClassJob.AsJob() == x.ClassJob)
+            .Select(x => x.Name)
+            .ToArray();
+        _classJobIds = dataHolder.ClassJobNames
+            .Where(x => x.ClassJob.AsJob() == x.ClassJob)
+            .Select(x => x.ClassJob)
+            .ToArray();
         UpdateEquipmentCategories();
 
+        Size = new Vector2(800, 500);
+        SizeCondition = ImGuiCond.FirstUseEver;
         SizeConstraints = new WindowSizeConstraints
         {
             MinimumSize = new Vector2(800, 500)
@@ -52,7 +60,7 @@ internal sealed class EquipmentBrowserWindow : Window
     public override void OnOpen()
     {
         if (_clientState.LocalPlayer != null)
-            _selectedClassJob = (EClassJob)_clientState.LocalPlayer.ClassJob.Id;
+            _selectedClassJob = ((EClassJob)_clientState.LocalPlayer.ClassJob.Id).AsJob();
 
         UpdateEquipmentCategories();
     }

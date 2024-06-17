@@ -93,6 +93,7 @@ internal sealed class GameDataHolder
                 .Where(x => x.ItemSeries.Row is <= 3 or >= 28)
                 .SelectMany(LoadItem)
                 .SelectMany(x => x.ClassJobs.Select(y => x.Item with { ClassJob = y }))
+                .Where(x => x.ClassJob != EClassJob.Scholar || x.ItemUiCategory != 10) // exclude ACN weapon as scholar
                 .Where(x =>
                 {
                     bool isGatheringItem = x.HasAnyStat(EBaseParam.Gathering, EBaseParam.Perception, EBaseParam.GP);
@@ -117,7 +118,8 @@ internal sealed class GameDataHolder
                     EquipSlotCategory = x.Key.EquipSlotCategory,
                     ItemUiCategory = x.Key.ItemUiCategory,
                     Items = x.ToList(),
-                }).ToList()
+                })
+                .ToList()
                 .AsReadOnly();
 
         UpdateAndSortLists();

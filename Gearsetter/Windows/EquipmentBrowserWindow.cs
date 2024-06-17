@@ -154,6 +154,7 @@ internal sealed class EquipmentBrowserWindow : Window
                         2 => ImGuiColors.ParsedGreen,
                         3 => ImGuiColors.ParsedBlue,
                         4 => ImGuiColors.ParsedPurple,
+                        7 => ImGuiColors.ParsedPink,
                         _ => null,
                     };
 

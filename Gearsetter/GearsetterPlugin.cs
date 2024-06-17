@@ -264,7 +264,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             })
             .Take(gearsetItem.Length)
             .ToList();
-        _pluginLog.Information(
+        _pluginLog.Debug(
             $"{equipSlotCategory}: {string.Join("    ", currentItems.Select(x => $"{x?.ItemId}|{x?.Hq}"))}");
         foreach (var currentItem in currentItems)
         {

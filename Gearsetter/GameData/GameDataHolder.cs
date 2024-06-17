@@ -90,6 +90,7 @@ internal sealed class GameDataHolder
                 .Where(x => x.EquipSlotCategory.Row > 0 &&
                             Enum.IsDefined(typeof(EEquipSlotCategory), x.EquipSlotCategory.Row))
                 .Where(x => x.LevelItem.Row > 1) // ignore ilvl 1 glamour items (also includes starter weapons)
+                .Where(x => x.ItemSeries.Row is <= 3 or >= 28)
                 .SelectMany(LoadItem)
                 .SelectMany(x => x.ClassJobs.Select(y => x.Item with { ClassJob = y }))
                 .Where(x =>
@@ -99,7 +100,7 @@ internal sealed class GameDataHolder
                         return isGatheringItem;
 
                     bool isCraftingItem = x.HasAnyStat(EBaseParam.Craftsmanship, EBaseParam.Control, EBaseParam.CP);
-                    if (x.ClassJob.IsGatherer())
+                    if (x.ClassJob.IsCrafter())
                         return isCraftingItem;
 
                     return !isGatheringItem && !isCraftingItem;
@@ -113,7 +114,7 @@ internal sealed class GameDataHolder
                 .Select(x => new ItemList
                 {
                     ClassJob = x.Key.ClassJob,
-                    EquipSlotCategory = (EEquipSlotCategory)x.Key.EquipSlotCategory,
+                    EquipSlotCategory = x.Key.EquipSlotCategory,
                     ItemUiCategory = x.Key.ItemUiCategory,
                     Items = x.ToList(),
                 }).ToList()

@@ -2,6 +2,8 @@
 Microsoft Visual Studio Solution File, Format Version 12.00
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gearsetter", "Gearsetter\Gearsetter.csproj", "{3E87693D-1FEE-486D-80E9-C6D95E68160F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gearsetter.Test", "Gearsetter.Test\Gearsetter.Test.csproj", "{19044F87-4C6D-4926-B5C8-5BB7760DC44C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -12,5 +14,9 @@ Global
 		{3E87693D-1FEE-486D-80E9-C6D95E68160F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3E87693D-1FEE-486D-80E9-C6D95E68160F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3E87693D-1FEE-486D-80E9-C6D95E68160F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{19044F87-4C6D-4926-B5C8-5BB7760DC44C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{19044F87-4C6D-4926-B5C8-5BB7760DC44C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{19044F87-4C6D-4926-B5C8-5BB7760DC44C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{19044F87-4C6D-4926-B5C8-5BB7760DC44C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

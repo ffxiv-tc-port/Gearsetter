@@ -2,8 +2,8 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using Dalamud.Logging;
 using Gearsetter.GameData;
-using Lumina.Excel.GeneratedSheets;
 
 namespace Gearsetter.Model;
 
@@ -25,88 +25,26 @@ internal sealed class ItemList
 
     public void Sort()
     {
-        Items.Sort((a, b) => -Sort(a, b));
-    }
+        var preferredItems = Items
+            .Where(x => PreferredItems.ContainsKey(x.ItemId))
+            .ToList();
+        var defaultItems = Items
+            .Except(preferredItems)
+            .OrderDescending(new EquipmentItemComparer(SubstatPriorities))
+            .ToList();
 
-    private int Sort(EquipmentItem a, EquipmentItem b)
-    {
-        // special items
-        if (PreferredItems.ContainsKey(a.ItemId) || PreferredItems.ContainsKey(b.ItemId))
+        // insert the preferred items
+        foreach (EquipmentItem preferredItem in preferredItems)
         {
-            byte? levelA = null;
-            byte? levelB = null;
-            if (PreferredItems.TryGetValue(a.ItemId, out byte overrideA))
-                levelA = overrideA;
-            if (PreferredItems.TryGetValue(b.ItemId, out byte overrideB))
-                levelB = overrideB;
-
-            if (levelA != null && levelB != null)
-                return levelA.Value.CompareTo(levelB.Value);
-            else if (levelA != null)
-            {
-                if (levelA == b.Level)
-                    return (a.ItemLevel - 1).CompareTo(b.ItemLevel);
-                return levelA.Value.CompareTo(b.Level);
-            }
-            else if (levelB != null)
-            {
-                if (a.Level == levelB)
-                    return a.ItemLevel.CompareTo(b.ItemLevel - 1);
-                return a.Level.CompareTo(levelB.Value);
-            }
+            int level = PreferredItems[preferredItem.ItemId];
+            int index = defaultItems.FindIndex(x => x.Level < level);
+            if (index >= 0)
+                defaultItems.Insert(index, preferredItem);
+            else
+                defaultItems.Add(preferredItem);
         }
 
-        // weapons: most damage wins
-        int damageA = a.Damage;
-        int damageB = b.Damage;
-        if (damageA != damageB)
-            return damageA.CompareTo(damageB);
-
-        // gear: primary stat wins
-        int primaryStatA = a.PrimaryStat;
-        int primaryStatB = b.PrimaryStat;
-        if (primaryStatA != primaryStatB)
-            return primaryStatA.CompareTo(primaryStatB);
-
-        // gear: vitality wins
-        int vitalityA = a.Stats.Get(EBaseParam.Vitality);
-        int vitalityB = b.Stats.Get(EBaseParam.Vitality);
-        if (vitalityA != vitalityB)
-            return vitalityA.CompareTo(vitalityB);
-
-        // sum of relevant substats
-        int sumOfSubstatsA = SubstatPriorities.Sum(x => a.Stats.Get(x));
-        int sumOfSubstatsB = SubstatPriorities.Sum(x => b.Stats.Get(x));
-
-        // some relics have no substats in the sheets, since they can be allocated dynamically
-        // they are -generally- better/equal to any other weapon on that ilvl
-        if (sumOfSubstatsA == 0 && a.IsCombatRelicWithoutSubstats())
-            sumOfSubstatsA = int.MaxValue;
-        if (sumOfSubstatsB == 0 && b.IsCombatRelicWithoutSubstats())
-            sumOfSubstatsB = int.MaxValue;
-
-        if (sumOfSubstatsA != sumOfSubstatsB)
-            return sumOfSubstatsA.CompareTo(sumOfSubstatsB);
-
-        // level-based sorting
-        if (a.Level != b.Level)
-            return a.Level.CompareTo(b.Level);
-        if (a.ItemLevel != b.ItemLevel)
-            return a.ItemLevel.CompareTo(b.ItemLevel);
-        if (a.Rarity != b.Rarity)
-            return a.Rarity.CompareTo(b.Rarity);
-
-        // individual substats
-        foreach (EBaseParam substat in SubstatPriorities)
-        {
-            int substatA = a.Stats.Get(substat);
-            int substatB = b.Stats.Get(substat);
-            if (substatA != substatB)
-                return substatA.CompareTo(substatB);
-        }
-
-        // fallback
-        return string.CompareOrdinal(a.Name, b.Name);
+        Items = defaultItems;
     }
 
     public void UpdateStats(Dictionary<EClassJob, EBaseParam> primaryStats, Configuration configuration)
@@ -133,6 +71,83 @@ internal sealed class ItemList
             Items = Items
                 .Select(x => x with { PrimaryStat = x.Stats.Get(primaryStat) })
                 .ToList();
+        }
+    }
+
+    private sealed class EquipmentItemComparer(IReadOnlyList<EBaseParam> substatPriorities) : IComparer<EquipmentItem>
+    {
+        public int Compare(EquipmentItem? a, EquipmentItem? b)
+        {
+            ArgumentNullException.ThrowIfNull(a);
+            ArgumentNullException.ThrowIfNull(b);
+
+            // weapons: most damage wins
+            int damageA = a.Damage;
+            int damageB = b.Damage;
+            if (damageA != damageB)
+                return damageA.CompareTo(damageB);
+
+            // gear: primary stat wins
+            //
+            // we pretend every gear item has at least 1 primary stat to ensure weathered items are sorted last(ish),
+            // where they would otherwise get sorted as better-than-shire items (while that may be correct, it's also
+            // stupid)
+            int primaryStatA = Math.Max(1, a.PrimaryStat);
+            int primaryStatB = Math.Max(1, b.PrimaryStat);
+            if (primaryStatA != primaryStatB)
+                return primaryStatA.CompareTo(primaryStatB);
+
+            // gear: vitality wins
+            int vitalityA = a.Stats.Get(EBaseParam.Vitality);
+            int vitalityB = b.Stats.Get(EBaseParam.Vitality);
+            if (vitalityA != vitalityB)
+                return vitalityA.CompareTo(vitalityB);
+
+            // sum of relevant substats
+            int sumOfSubstatsA = substatPriorities.Sum(x => a.Stats.Get(x));
+            int sumOfSubstatsB = substatPriorities.Sum(x => b.Stats.Get(x));
+
+            // some relics have no substats in the sheets, since they can be allocated dynamically
+            // they are -generally- better/equal to any other weapon on that ilvl
+            if (sumOfSubstatsA == 0 && a.IsCombatRelicWithoutSubstats())
+                sumOfSubstatsA = int.MaxValue;
+            if (sumOfSubstatsB == 0 && b.IsCombatRelicWithoutSubstats())
+                sumOfSubstatsB = int.MaxValue;
+
+            if (sumOfSubstatsA != sumOfSubstatsB)
+                return sumOfSubstatsA.CompareTo(sumOfSubstatsB);
+
+            // level-based sorting
+            if (a.Level != b.Level)
+                return a.Level.CompareTo(b.Level);
+            if (a.ItemLevel != b.ItemLevel)
+                return a.ItemLevel.CompareTo(b.ItemLevel);
+            if (a.Rarity != b.Rarity)
+            {
+                // aetherial items aren't "special" enough to be sorted higher than normal gear
+                int rarityA = a.Rarity;
+                int rarityB = b.Rarity;
+
+                if (rarityA == 7)
+                    rarityA = 1;
+
+                if (rarityB == 7)
+                    rarityB = 1;
+
+                return rarityA.CompareTo(rarityB);
+            }
+
+            // individual substats
+            foreach (EBaseParam substat in substatPriorities)
+            {
+                int substatA = a.Stats.Get(substat);
+                int substatB = b.Stats.Get(substat);
+                if (substatA != substatB)
+                    return substatA.CompareTo(substatB);
+            }
+
+            // fallback
+            return string.CompareOrdinal(a.Name, b.Name);
         }
     }
 }

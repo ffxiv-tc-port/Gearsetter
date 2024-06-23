@@ -23,7 +23,7 @@ internal enum EBaseParam : byte
     DirectHit = 22,
     Determination = 44,
     SpellSpeed = 46,
-    SkillSpeed = 23,
+    SkillSpeed = 45,
 
     Craftsmanship = 70,
     Control = 71,

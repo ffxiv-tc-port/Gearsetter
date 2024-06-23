@@ -83,6 +83,9 @@ internal sealed class GameDataHolder
             .ThenBy(x => x.OrderMinor)
             .Select(x => (x.RowId, x.Name.ToString()))
             .ToList();
+        Materias = dataManager.GetExcelSheet<Materia>()!
+            .Where(x => x.RowId > 0 && Enum.IsDefined(typeof(EBaseParam), (byte)x.BaseParam.Row))
+            .ToDictionary(x => x.RowId, x => new MateriaStat((EBaseParam)x.BaseParam.Row, x.Value));
 
         _allItemLists =
             dataManager.GetExcelSheet<Item>()!
@@ -117,7 +120,7 @@ internal sealed class GameDataHolder
                     ClassJob = x.Key.ClassJob,
                     EquipSlotCategory = x.Key.EquipSlotCategory,
                     ItemUiCategory = x.Key.ItemUiCategory,
-                    Items = x.ToList(),
+                    Items = x.Cast<BaseItem>().ToList(),
                 })
                 .ToList()
                 .AsReadOnly();
@@ -125,10 +128,10 @@ internal sealed class GameDataHolder
         UpdateAndSortLists();
     }
 
-
     public IReadOnlyList<(EClassJob ClassJob, string Name)> ClassJobNames { get; }
     public IReadOnlyList<(uint ItemUiCategory, string Name)> ItemUiCategoryNames { get; }
     public Dictionary<EClassJob, EBaseParam> PrimaryStats { get; }
+    public Dictionary<uint, MateriaStat> Materias { get; set; }
 
     public Dictionary<EBaseParam, string> StatNames { get; } = new()
     {

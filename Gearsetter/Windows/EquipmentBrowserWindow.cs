@@ -9,6 +9,7 @@ using Dalamud.Interface.Colors;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Gearsetter.GameData;
+using Gearsetter.Model;
 using ImGuiNET;
 
 namespace Gearsetter.Windows;
@@ -109,102 +110,117 @@ internal sealed class EquipmentBrowserWindow : Window
         ImGui.SameLine();
         ImGui.Checkbox("Hide normal quality items", ref _hideNormalQualityItems);
 
-        Dictionary<(uint, bool), int>? ownedItems = null;
-        if (_onlyShowOwnedItems)
-            ownedItems = _plugin.GetAllInventoryItems();
-
-        byte maxLevel = byte.MaxValue;
-        if (_onlyShowEquippableItems)
-            maxLevel = _plugin.GetLevel(_selectedClassJob);
-
-        bool includeDamage = _selectedEquipmentCategory is EEquipSlotCategory.OneHandedMainHand
-                                 or EEquipSlotCategory.Shield
-                                 or EEquipSlotCategory.TwoHandedMainHand
-                             && !itemList.ClassJob.IsCrafter()
-                             && !itemList.ClassJob.IsGatherer();
-        if (ImGui.BeginTable("ItemList", 2 + (includeDamage ? 1 : 0) + itemList.SubstatPriorities.Count,
-                ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable))
+        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> ownedItems = _plugin.GetAllInventoryItems();
+        try
         {
-            ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.None, 300);
-            ImGui.TableSetupColumn("Level", ImGuiTableColumnFlags.WidthFixed, 50);
-            if (includeDamage)
-                ImGui.TableSetupColumn("Damage", ImGuiTableColumnFlags.WidthFixed, 50);
-            foreach (var substat in itemList.SubstatPriorities)
-                ImGui.TableSetupColumn(_dataHolder.StatNames[substat], ImGuiTableColumnFlags.WidthFixed, 50);
+            itemList.ApplyFromInventory(ownedItems, _onlyShowOwnedItems);
 
-            ImGui.TableHeadersRow();
+            byte maxLevel = byte.MaxValue;
+            if (_onlyShowEquippableItems)
+                maxLevel = _plugin.GetLevel(_selectedClassJob);
 
-            foreach (var item in itemList.Items)
+            bool includeDamage = _selectedEquipmentCategory is EEquipSlotCategory.OneHandedMainHand
+                                     or EEquipSlotCategory.Shield
+                                     or EEquipSlotCategory.TwoHandedMainHand
+                                 && !itemList.ClassJob.IsCrafter()
+                                 && !itemList.ClassJob.IsGatherer();
+            if (ImGui.BeginTable("ItemList", 2 + (includeDamage ? 1 : 0) + itemList.SubstatPriorities.Count,
+                    ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable))
             {
-                if (ownedItems != null && !ownedItems.ContainsKey((item.ItemId, item.Hq)))
-                    continue;
+                ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.None, 300);
+                ImGui.TableSetupColumn("Level", ImGuiTableColumnFlags.WidthFixed, 50);
+                if (includeDamage)
+                    ImGui.TableSetupColumn("Damage", ImGuiTableColumnFlags.WidthFixed, 50);
+                foreach (var substat in itemList.SubstatPriorities)
+                    ImGui.TableSetupColumn(_dataHolder.StatNames[substat], ImGuiTableColumnFlags.WidthFixed, 50);
 
-                if (item.Level > maxLevel)
-                    continue;
+                ImGui.TableHeadersRow();
 
-                if (_hideNormalQualityItems && item.CanBeHq && !item.Hq)
-                    continue;
-
-                ImGui.TableNextRow();
-
-                if (ImGui.TableNextColumn())
+                foreach (var item in itemList.Items.DistinctBy(x => new { x.ItemId, x.Hq, Materia = x.MateriaStats?.GetHashCode() }))
                 {
-                    Vector4? color = item.Rarity switch
+                    if (item is not InventoryItem)
                     {
-                        2 => ImGuiColors.ParsedGreen,
-                        3 => ImGuiColors.ParsedBlue,
-                        4 => ImGuiColors.ParsedPurple,
-                        7 => ImGuiColors.ParsedPink,
-                        _ => null,
-                    };
-
-                    string name = item.Name;
-                    if (item.Hq)
-                        name += $" {SeIconChar.HighQuality.ToIconString()}";
-
-                    if (color != null)
-                        ImGui.TextColored(color.Value, name);
-                    else
-                        ImGui.Text(name);
-
-                    if (ImGui.IsItemClicked())
-                    {
-                        try
-                        {
-                            _chatGui.Print(SeString.CreateItemLink(item.ItemId, item.Hq));
-                        }
-                        catch (Exception)
-                        {
-                            // doesn't matter, just nice-to-have
-                        }
+                        if (_onlyShowOwnedItems)
+                            continue;
                     }
-                }
 
-                if (ImGui.TableNextColumn())
-                {
-                    if (item.Level >= 50 && item.Level % 10 == 0)
-                        ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{item.Level} ({item.ItemLevel})"));
-                    else
-                        ImGui.Text(item.Level.ToString(CultureInfo.InvariantCulture));
-                }
+                    if (item.Level > maxLevel)
+                        continue;
 
-                if (includeDamage && ImGui.TableNextColumn())
-                    ImGui.Text(item.Damage.ToString(CultureInfo.CurrentCulture));
+                    if (_hideNormalQualityItems && item.CanBeHq && !item.Hq)
+                        continue;
 
-                foreach (EBaseParam substat in itemList.SubstatPriorities)
-                {
+                    ImGui.TableNextRow();
+
                     if (ImGui.TableNextColumn())
                     {
-                        var stat = item.Stats.Get(substat);
-                        if (stat == 0)
-                            ImGui.Text("-");
+                        Vector4? color = item.Rarity switch
+                        {
+                            2 => ImGuiColors.ParsedGreen,
+                            3 => ImGuiColors.ParsedBlue,
+                            4 => ImGuiColors.ParsedPurple,
+                            7 => ImGuiColors.ParsedPink,
+                            _ => null,
+                        };
+
+                        string name = item.Name;
+                        if (item.Hq)
+                            name += $" {SeIconChar.HighQuality.ToIconString()}";
+                        if (item is InventoryItem { MateriaStats: not null } inventoryItem)
+                            name +=
+                                $"    {string.Join("", Enumerable.Repeat(SeIconChar.Circle.ToIconString(), inventoryItem.MateriaStats.Count))}";
+
+                        if (color != null)
+                            ImGui.TextColored(color.Value, name);
                         else
-                            ImGui.Text(stat.ToString(CultureInfo.CurrentCulture));
+                            ImGui.Text(name);
+
+                        if (ImGui.IsItemClicked())
+                        {
+                            try
+                            {
+                                _chatGui.Print(SeString.CreateItemLink(item.ItemId, item.Hq));
+                            }
+                            catch (Exception)
+                            {
+                                // doesn't matter, just nice-to-have
+                            }
+                        }
+                    }
+
+                    if (ImGui.TableNextColumn())
+                    {
+                        if (item.Level >= 50 && item.Level % 10 == 0)
+                            ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{item.Level} ({item.ItemLevel})"));
+                        else
+                            ImGui.Text(item.Level.ToString(CultureInfo.InvariantCulture));
+                    }
+
+                    if (includeDamage && ImGui.TableNextColumn())
+                        ImGui.Text(item.Damage.ToString(CultureInfo.CurrentCulture));
+
+                    foreach (EBaseParam substat in itemList.SubstatPriorities)
+                    {
+                        if (ImGui.TableNextColumn())
+                        {
+                            var estat = item.Stats.GetEquipment(substat);
+                            var mstat = item.Stats.GetMateria(substat);
+                            if (estat == 0 && mstat == 0)
+                                ImGui.Text("-");
+                            else if (mstat == 0)
+                                ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{estat}"));
+                            else
+                                ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{estat} +{mstat}"));
+                        }
                     }
                 }
-            }
 
-            ImGui.EndTable();
+                ImGui.EndTable();
+            }
+        }
+        finally
+        {
+            itemList.ClearFromInventory();
         }
     }
 

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using Dalamud.Logging;
 using Gearsetter.GameData;
 
 namespace Gearsetter.Model;
@@ -20,7 +19,8 @@ internal sealed class ItemList
     public required EClassJob ClassJob { get; init; }
     public required EEquipSlotCategory EquipSlotCategory { get; init; }
     public required uint ItemUiCategory { get; init; }
-    public required List<EquipmentItem> Items { get; set; }
+    public required List<BaseItem> Items { get; set; }
+    public EBaseParam PrimaryStat { get; set; }
     public IReadOnlyList<EBaseParam> SubstatPriorities { get; set; } = new List<EBaseParam>();
 
     public void Sort()
@@ -30,11 +30,11 @@ internal sealed class ItemList
             .ToList();
         var defaultItems = Items
             .Except(preferredItems)
-            .OrderDescending(new EquipmentItemComparer(SubstatPriorities))
+            .OrderDescending(new ItemComparer(SubstatPriorities))
             .ToList();
 
         // insert the preferred items
-        foreach (EquipmentItem preferredItem in preferredItems)
+        foreach (BaseItem preferredItem in preferredItems)
         {
             int level = PreferredItems[preferredItem.ItemId];
             int index = defaultItems.FindIndex(x => x.Level < level);
@@ -68,15 +68,48 @@ internal sealed class ItemList
 
         if (primaryStats.TryGetValue(ClassJob, out EBaseParam primaryStat))
         {
+            PrimaryStat = primaryStat;
             Items = Items
+                .Where(x => x is EquipmentItem)
+                .Cast<EquipmentItem>()
                 .Select(x => x with { PrimaryStat = x.Stats.Get(primaryStat) })
+                .Cast<BaseItem>()
                 .ToList();
         }
     }
 
-    private sealed class EquipmentItemComparer(IReadOnlyList<EBaseParam> substatPriorities) : IComparer<EquipmentItem>
+    public void ApplyFromInventory(Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems,
+        bool includeWithoutMateria)
     {
-        public int Compare(EquipmentItem? a, EquipmentItem? b)
+        foreach (var inventoryItem in inventoryItems)
+        {
+            var basicItem = Items.SingleOrDefault(x =>
+                x.ItemId == inventoryItem.Key.ItemId && x.Hq == inventoryItem.Key.Hq);
+            if (basicItem == null)
+                continue;
+
+            foreach (var materias in inventoryItem.Value)
+            {
+                if (includeWithoutMateria || materias.Values.Count > 0)
+                    Items.Add(
+                        new InventoryItem(basicItem.Item, basicItem.Hq, materias, basicItem.ClassJob)
+                        {
+                            PrimaryStat = basicItem.Stats.Get(PrimaryStat)
+                        });
+            }
+        }
+
+        Sort();
+    }
+
+    public void ClearFromInventory()
+    {
+        Items.RemoveAll(x => x is InventoryItem);
+    }
+
+    private sealed class ItemComparer(IReadOnlyList<EBaseParam> substatPriorities) : IComparer<BaseItem>
+    {
+        public int Compare(BaseItem? a, BaseItem? b)
         {
             ArgumentNullException.ThrowIfNull(a);
             ArgumentNullException.ThrowIfNull(b);

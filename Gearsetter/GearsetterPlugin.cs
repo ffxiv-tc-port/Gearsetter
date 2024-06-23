@@ -17,6 +17,7 @@ using Gearsetter.Model;
 using Gearsetter.Windows;
 using Lumina.Excel.GeneratedSheets;
 using GrandCompany = FFXIVClientStructs.FFXIV.Client.UI.Agent.GrandCompany;
+using InventoryItem = FFXIVClientStructs.FFXIV.Client.Game.InventoryItem;
 
 namespace Gearsetter;
 
@@ -149,7 +150,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     }
 
     private unsafe bool HandleGearset(RaptureGearsetModule.GearsetEntry* gearset,
-        Dictionary<(uint ItemId, bool Hq), int> inventoryItems, byte? level)
+        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems, byte? level)
     {
         string name = GetGearsetName(gearset);
         if (name.Contains('_', StringComparison.Ordinal) ||
@@ -210,7 +211,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         => Encoding.UTF8.GetString(gearset->Name, 0x2F).Split((char)0)[0];
 
     private unsafe List<SeString> HandleGearsetItem(string label, RaptureGearsetModule.GearsetEntry* gearset,
-        RaptureGearsetModule.GearsetItem[] gearsetItem, Dictionary<(uint ItemId, bool Hq), int> inventoryItems,
+        RaptureGearsetModule.GearsetItem[] gearsetItem,
+        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems,
         EEquipSlotCategory equipSlotCategory, byte? level)
     {
         EClassJob classJob = (EClassJob)gearset->ClassJob;
@@ -230,7 +232,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             return new List<SeString>();
         }
 
-        EquipmentItem?[] currentItems = gearsetItem.Select(x => new
+        BaseItem?[] currentItems = gearsetItem.Select(x => new
             {
                 ItemId = x.ItemID % 1_000_000,
                 Hq = x.ItemID > 1_000_000
@@ -253,35 +255,38 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         if (level == null)
             level = GetLevel(classJob);
 
-        var bestItems = availableList.Items
-            .Where(x => x.Level <= level)
-            .SelectMany(x =>
-            {
-                if (inventoryItems.TryGetValue((x.ItemId, x.Hq), out int count) && count > 0)
-                    return Enumerable.Repeat(x, count);
-                else
-                    return [];
-            })
-            .Take(gearsetItem.Length)
-            .ToList();
-        _pluginLog.Debug(
-            $"{equipSlotCategory}: {string.Join("    ", currentItems.Select(x => $"{x?.ItemId}|{x?.Hq}"))}");
-        foreach (var currentItem in currentItems)
+        try
         {
-            var foundIndex = bestItems.FindIndex(x =>
-                currentItem != null && currentItem.ItemId == x.ItemId && currentItem.Hq == x.Hq);
-            if (foundIndex >= 0)
-                bestItems.RemoveAt(foundIndex);
-        }
+            availableList.ApplyFromInventory(inventoryItems, true);
 
-        return bestItems
-            .Select(x => new SeString(new TextPayload($"{label}: "))
-                .Append(SeString.CreateItemLink(x.ItemId, x.Hq))).ToList();
+            var bestItems = availableList.Items
+                .Where(x => x.Level <= level)
+                .Where(x => x is Model.InventoryItem)
+                .Take(gearsetItem.Length)
+                .ToList();
+            _pluginLog.Debug(
+                $"{equipSlotCategory}: {string.Join("    ", currentItems.Select(x => $"{x?.ItemId}|{x?.Hq}"))}");
+            foreach (var currentItem in currentItems)
+            {
+                var foundIndex = bestItems.FindIndex(x =>
+                    currentItem != null && currentItem.ItemId == x.ItemId && currentItem.Hq == x.Hq);
+                if (foundIndex >= 0)
+                    bestItems.RemoveAt(foundIndex);
+            }
+
+            return bestItems
+                .Select(x => new SeString(new TextPayload($"{label}: "))
+                    .Append(SeString.CreateItemLink(x.ItemId, x.Hq))).ToList();
+        }
+        finally
+        {
+            availableList.ClearFromInventory();
+        }
     }
 
 
     private unsafe List<SeString> HandleOffHand(RaptureGearsetModule.GearsetEntry* gearset,
-        Dictionary<(uint ItemId, bool Hq), int> inventoryItems, byte? level)
+        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems, byte? level)
     {
         var mainHand = gearset->ItemsSpan[0];
         if (mainHand.ItemID == 0)
@@ -300,9 +305,9 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private unsafe void ChangeGearset(uint commandId, SeString seString)
         => RaptureGearsetModule.Instance()->EquipGearset((byte)commandId);
 
-    public unsafe Dictionary<(uint ItemId, bool Hq), int> GetAllInventoryItems()
+    internal unsafe Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> GetAllInventoryItems()
     {
-        Dictionary<(uint, bool), int> inventoryItems = new();
+        Dictionary<(uint, bool), List<MateriaStats>> inventoryItems = new();
         InventoryManager* inventoryManager = InventoryManager.Instance();
         foreach (var inventoryType in _gameDataHolder.DefaultInventoryTypes)
         {
@@ -313,10 +318,27 @@ public sealed class GearsetterPlugin : IDalamudPlugin
                 if (item != null && item->ItemID != 0)
                 {
                     var key = (item->ItemID, item->Flags.HasFlag(InventoryItem.ItemFlags.HQ));
-                    if (inventoryItems.TryGetValue(key, out var value))
-                        inventoryItems[key] = value + 1;
-                    else
-                        inventoryItems[key] = 1;
+                    if (!inventoryItems.TryGetValue(key, out var list))
+                    {
+                        list = new List<MateriaStats>();
+                        inventoryItems[key] = list;
+                    }
+
+
+                    byte materiaCount = item->GetMateriaCount();
+                    var materias = Enumerable.Range(0, materiaCount)
+                        .Select<int, (MateriaStat, byte)?>(slot =>
+                        {
+                            if (_gameDataHolder.Materias.TryGetValue(item->GetMateriaId((byte)slot),
+                                    out MateriaStat? value))
+                                return (value, item->GetMateriaGrade((byte)slot));
+                            else
+                                return null;
+                        })
+                        .Where(x => x != null)
+                        .Select(x => x!.Value)
+                        .ToList();
+                    list.Add(new MateriaStats(materias));
                 }
             }
         }

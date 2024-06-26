@@ -71,7 +71,7 @@ internal sealed class EquipmentBrowserWindow : Window
         return _clientState.IsLoggedIn;
     }
 
-    public override void Draw()
+    public override unsafe void Draw()
     {
         int currentClassJob = Array.IndexOf(_classJobIds, _selectedClassJob);
         if (currentClassJob == -1)
@@ -124,6 +124,10 @@ internal sealed class EquipmentBrowserWindow : Window
                                      or EEquipSlotCategory.TwoHandedMainHand
                                  && !itemList.ClassJob.IsCrafter()
                                  && !itemList.ClassJob.IsGatherer();
+
+            var hoverColorPtr = ImGui.GetStyleColorVec4(ImGuiCol.HeaderHovered);
+            var hoverColor = new Vector4(hoverColorPtr->X, hoverColorPtr->Y, hoverColorPtr->Z, 0.3f);
+
             if (ImGui.BeginTable("ItemList", 2 + (includeDamage ? 1 : 0) + itemList.SubstatPriorities.Count,
                     ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable))
             {
@@ -136,6 +140,7 @@ internal sealed class EquipmentBrowserWindow : Window
 
                 ImGui.TableHeadersRow();
 
+                ImGui.PushStyleColor(ImGuiCol.HeaderHovered, hoverColor);
                 foreach (var item in itemList.Items.DistinctBy(x => new { x.ItemId, x.Hq, Materia = x.MateriaStats?.GetHashCode() }))
                 {
                     if (item is not InventoryItem)
@@ -168,12 +173,15 @@ internal sealed class EquipmentBrowserWindow : Window
                             name += $" {SeIconChar.HighQuality.ToIconString()}";
                         if (item is InventoryItem { MateriaStats: not null } inventoryItem)
                             name +=
-                                $"    {string.Join("", Enumerable.Repeat(SeIconChar.Circle.ToIconString(), inventoryItem.MateriaStats.Count))}";
+                                $"    {string.Join("", Enumerable.Repeat(SeIconChar.Circle.ToIconString(), inventoryItem.MateriaStats!.Count))}";
 
                         if (color != null)
-                            ImGui.TextColored(color.Value, name);
-                        else
-                            ImGui.Text(name);
+                            ImGui.PushStyleColor(ImGuiCol.Text, color.Value);
+
+                        ImGui.Selectable(name, false, ImGuiSelectableFlags.SpanAllColumns);
+
+                        if (color != null)
+                            ImGui.PopStyleColor();
 
                         if (ImGui.IsItemClicked())
                         {
@@ -215,6 +223,7 @@ internal sealed class EquipmentBrowserWindow : Window
                     }
                 }
 
+                ImGui.PopStyleColor();
                 ImGui.EndTable();
             }
         }

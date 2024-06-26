@@ -63,6 +63,8 @@ internal sealed class GameDataHolder
                         { EClassJob.Dancer, x.DNC },
                         { EClassJob.Reaper, x.RPR },
                         { EClassJob.Sage, x.SGE },
+                        { EClassJob.Viper, x.Unknown42 },
+                        { EClassJob.Pictomancer, x.Unknown43 }
                     }
                     .Where(y => y.Value)
                     .Select(y => y.Key)

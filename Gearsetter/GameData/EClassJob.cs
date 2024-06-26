@@ -43,6 +43,8 @@ internal enum EClassJob : uint
     Dancer = 38,
     Reaper = 39,
     Sage = 40,
+    Viper = 41,
+    Pictomancer = 42,
 }
 
 internal static class EClassJobExtensions
@@ -84,7 +86,8 @@ internal static class EClassJobExtensions
             or EClassJob.Rogue
             or EClassJob.Ninja
             or EClassJob.Samurai
-            or EClassJob.Reaper;
+            or EClassJob.Reaper
+            or EClassJob.Viper;
 
     public static bool IsPhysicalRanged(this EClassJob classJob) =>
         classJob is EClassJob.Archer
@@ -98,7 +101,8 @@ internal static class EClassJobExtensions
             or EClassJob.Arcanist
             or EClassJob.Summoner
             or EClassJob.RedMage
-            or EClassJob.BlueMage;
+            or EClassJob.BlueMage
+            or EClassJob.Pictomancer;
 
     public static bool DealsPhysicalDamage(this EClassJob classJob) =>
         classJob.IsTank() || classJob.IsMelee() || classJob.IsPhysicalRanged();

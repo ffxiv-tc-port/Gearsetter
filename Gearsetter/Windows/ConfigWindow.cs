@@ -1,15 +1,15 @@
-﻿using Dalamud.Interface.Windowing;
-using Dalamud.Plugin;
+﻿using Dalamud.Plugin;
 using ImGuiNET;
+using LLib.ImGui;
 
 namespace Gearsetter.Windows;
 
-internal sealed class ConfigWindow : Window
+internal sealed class ConfigWindow : LWindow
 {
-    private readonly DalamudPluginInterface _pluginInterface;
+    private readonly IDalamudPluginInterface _pluginInterface;
     private readonly Configuration _configuration;
 
-    public ConfigWindow(DalamudPluginInterface pluginInterface, Configuration configuration)
+    public ConfigWindow(IDalamudPluginInterface pluginInterface, Configuration configuration)
         : base("Gearsetter - Config###GearsetterConfig", ImGuiWindowFlags.AlwaysAutoResize)
     {
         _pluginInterface = pluginInterface;

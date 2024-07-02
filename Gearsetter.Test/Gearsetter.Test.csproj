@@ -1,21 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Dalamud.NET.Sdk/9.0.2">
     <PropertyGroup>
-        <TargetFramework>net8.0-windows</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-
         <IsPackable>false</IsPackable>
         <IsTestProject>true</IsTestProject>
     </PropertyGroup>
 
-    <PropertyGroup>
-        <DalamudLibPath>$(appdata)\XIVLauncher\addon\Hooks\dev\</DalamudLibPath>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform($([System.Runtime.InteropServices.OSPlatform]::Linux)))'">
-        <DalamudLibPath>$(DALAMUD_HOME)/</DalamudLibPath>
-    </PropertyGroup>
+    <Import Project="..\LLib\LLib.targets"/>
 
     <ItemGroup>
         <PackageReference Include="coverlet.collector" Version="6.0.0"/>
@@ -24,24 +13,14 @@
         <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3"/>
     </ItemGroup>
 
+    <!-- Need to be explicitly added for test projects, as it otherwise won't find the DLLs -->
     <ItemGroup>
-        <Reference Include="Dalamud">
-            <HintPath>$(DalamudLibPath)Dalamud.dll</HintPath>
-        </Reference>
-        <Reference Include="Lumina">
-            <HintPath>$(DalamudLibPath)Lumina.dll</HintPath>
-        </Reference>
-        <Reference Include="Lumina.Excel">
-            <HintPath>$(DalamudLibPath)Lumina.Excel.dll</HintPath>
-        </Reference>
+        <Reference Include="Dalamud"/>
+        <Reference Include="Lumina"/>
+        <Reference Include="Lumina.Excel"/>
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="..\Gearsetter\Gearsetter.csproj"/>
     </ItemGroup>
-
-    <ItemGroup>
-        <Using Include="Xunit"/>
-    </ItemGroup>
-
 </Project>

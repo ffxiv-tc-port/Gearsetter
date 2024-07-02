@@ -6,15 +6,15 @@ using System.Numerics;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface.Colors;
-using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using Gearsetter.GameData;
 using Gearsetter.Model;
 using ImGuiNET;
+using LLib.ImGui;
 
 namespace Gearsetter.Windows;
 
-internal sealed class EquipmentBrowserWindow : Window
+internal sealed class EquipmentBrowserWindow : LWindow
 {
     private readonly GearsetterPlugin _plugin;
     private readonly GameDataHolder _dataHolder;

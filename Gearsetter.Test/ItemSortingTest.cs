@@ -1,12 +1,16 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Gearsetter.GameData;
 using Gearsetter.Model;
 using Lumina.Excel.GeneratedSheets;
+using Xunit;
 
 namespace Gearsetter.Test;
 
 public sealed class ItemSortingTest
 {
-    Lumina.GameData _lumina = new( "C:/Program Files (x86)/steam/steamapps/common/FINAL FANTASY XIV Online/game/sqpack" );
+    Lumina.GameData _lumina = new("C:/Program Files (x86)/steam/steamapps/common/FINAL FANTASY XIV Online/game/sqpack");
 
     [Fact]
     public void Test1()
@@ -33,7 +37,6 @@ public sealed class ItemSortingTest
             Items = initialItemIds.Select(rowId => new EquipmentItem(items.GetRow(rowId)!, false))
                 .Cast<BaseItem>()
                 .ToList(),
-
         };
 
         var primaryStats = _lumina.GetExcelSheet<ClassJob>()!

@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Text;
 using Dalamud.Game.Command;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
@@ -25,7 +24,7 @@ namespace Gearsetter;
 public sealed class GearsetterPlugin : IDalamudPlugin
 {
     private readonly WindowSystem _windowSystem = new(nameof(GearsetterPlugin));
-    private readonly DalamudPluginInterface _pluginInterface;
+    private readonly IDalamudPluginInterface _pluginInterface;
     private readonly ICommandManager _commandManager;
     private readonly IChatGui _chatGui;
     private readonly IDataManager _dataManager;
@@ -39,7 +38,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private readonly IReadOnlyDictionary<byte, DalamudLinkPayload> _linkPayloads;
     private readonly Dictionary<EClassJob, byte> _classJobToArrayIndex;
 
-    public GearsetterPlugin(DalamudPluginInterface pluginInterface, ICommandManager commandManager, IChatGui chatGui,
+    public GearsetterPlugin(IDalamudPluginInterface pluginInterface, ICommandManager commandManager, IChatGui chatGui,
         IDataManager dataManager, IPluginLog pluginLog, IClientState clientState)
     {
         ArgumentNullException.ThrowIfNull(dataManager);
@@ -158,27 +157,27 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             name.Contains("Bozja", StringComparison.OrdinalIgnoreCase))
             return false;
 
-        List<SeString> Handle(string label, int[] spanIds, EEquipSlotCategory category)
+        List<SeString> Handle(string label, RaptureGearsetModule.GearsetItemIndex[] spanIds, EEquipSlotCategory category)
         {
-            return HandleGearsetItem(label, gearset, spanIds.Select(x => gearset->ItemsSpan[x]).ToArray(),
+            return HandleGearsetItem(label, gearset, spanIds.Select(x => gearset->GetItem(x)).ToArray(),
                 inventoryItems, category, level);
         }
 
         List<List<SeString>> upgrades = new()
         {
-            Handle("Main Hand", [0], EEquipSlotCategory.None),
+            Handle("Main Hand", [RaptureGearsetModule.GearsetItemIndex.MainHand], EEquipSlotCategory.None),
             HandleOffHand(gearset, inventoryItems, level),
 
-            Handle("Head", [2], EEquipSlotCategory.Head),
-            Handle("Body", [3], EEquipSlotCategory.Body),
-            Handle("Hands", [4], EEquipSlotCategory.Hands),
-            Handle("Legs", [6], EEquipSlotCategory.Legs),
-            Handle("Feet", [7], EEquipSlotCategory.Feet),
+            Handle("Head", [RaptureGearsetModule.GearsetItemIndex.Head], EEquipSlotCategory.Head),
+            Handle("Body", [RaptureGearsetModule.GearsetItemIndex.Body], EEquipSlotCategory.Body),
+            Handle("Hands", [RaptureGearsetModule.GearsetItemIndex.Hands], EEquipSlotCategory.Hands),
+            Handle("Legs", [RaptureGearsetModule.GearsetItemIndex.Legs], EEquipSlotCategory.Legs),
+            Handle("Feet", [RaptureGearsetModule.GearsetItemIndex.Feet], EEquipSlotCategory.Feet),
 
-            Handle("Ears", [8], EEquipSlotCategory.Ears),
-            Handle("Neck", [9], EEquipSlotCategory.Neck),
-            Handle("Wrists", [10], EEquipSlotCategory.Wrists),
-            Handle("Rings", [11, 12], EEquipSlotCategory.Rings),
+            Handle("Ears", [RaptureGearsetModule.GearsetItemIndex.Ears], EEquipSlotCategory.Ears),
+            Handle("Neck", [RaptureGearsetModule.GearsetItemIndex.Neck], EEquipSlotCategory.Neck),
+            Handle("Wrists", [RaptureGearsetModule.GearsetItemIndex.Wrists], EEquipSlotCategory.Wrists),
+            Handle("Rings", [RaptureGearsetModule.GearsetItemIndex.RingLeft, RaptureGearsetModule.GearsetItemIndex.RingRight], EEquipSlotCategory.Rings),
         };
 
         List<SeString> flatUpgrades = upgrades.SelectMany(x => x).ToList();
@@ -189,8 +188,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             new SeStringBuilder()
                 .Append("Gearset ")
                 .AddUiForeground(1)
-                .Add(_linkPayloads[gearset->ID])
-                .Append($"#{gearset->ID + 1}: ")
+                .Add(_linkPayloads[gearset->Id])
+                .Append($"#{gearset->Id + 1}: ")
                 .Append(name)
                 .Add(RawPayload.LinkTerminator)
                 .AddUiForegroundOff()
@@ -208,7 +207,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     /// the string ends after the name (and not render ANY text on the same line after the name).
     /// </summary>
     private unsafe string GetGearsetName(RaptureGearsetModule.GearsetEntry* gearset)
-        => Encoding.UTF8.GetString(gearset->Name, 0x2F).Split((char)0)[0];
+        => gearset->NameString.Split((char)0)[0];
 
     private unsafe List<SeString> HandleGearsetItem(string label, RaptureGearsetModule.GearsetEntry* gearset,
         RaptureGearsetModule.GearsetItem[] gearsetItem,
@@ -218,11 +217,11 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         EClassJob classJob = (EClassJob)gearset->ClassJob;
         var itemLists = _gameDataHolder.GetItemLists(classJob);
 
-        if (gearsetItem.Any(x => x.ItemID > 0))
+        if (gearsetItem.Any(x => x.ItemId > 0))
         {
-            var firstEquippedItem = gearsetItem.First(x => x.ItemID > 0);
+            var firstEquippedItem = gearsetItem.First(x => x.ItemId > 0);
             equipSlotCategory = (EEquipSlotCategory)(_dataManager.GetExcelSheet<Item>()!
-                .GetRow(firstEquippedItem.ItemID % 1_000_000)
+                .GetRow(firstEquippedItem.ItemId % 1_000_000)
                 ?.EquipSlotCategory?.Row ?? 0);
         }
 
@@ -234,8 +233,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
         BaseItem?[] currentItems = gearsetItem.Select(x => new
             {
-                ItemId = x.ItemID % 1_000_000,
-                Hq = x.ItemID > 1_000_000
+                ItemId = x.ItemId % 1_000_000,
+                Hq = x.ItemId > 1_000_000
             })
             .Select(x =>
             {
@@ -264,8 +263,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
                 .Where(x => x is Model.InventoryItem)
                 .Take(gearsetItem.Length)
                 .ToList();
-            _pluginLog.Debug(
-                $"{equipSlotCategory}: {string.Join("    ", currentItems.Select(x => $"{x?.ItemId}|{x?.Hq}"))}");
+            //_pluginLog.Debug(
+            //    $"{equipSlotCategory}: {string.Join("    ", currentItems.Select(x => $"{x?.ItemId}|{x?.Hq}"))}");
             foreach (var currentItem in currentItems)
             {
                 var foundIndex = bestItems.FindIndex(x =>
@@ -288,17 +287,17 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private unsafe List<SeString> HandleOffHand(RaptureGearsetModule.GearsetEntry* gearset,
         Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems, byte? level)
     {
-        var mainHand = gearset->ItemsSpan[0];
-        if (mainHand.ItemID == 0)
+        var mainHand = gearset->GetItem(RaptureGearsetModule.GearsetItemIndex.MainHand);
+        if (mainHand.ItemId == 0)
             return new List<SeString>();
 
         // if it's a twohanded weapon, ignore it
         EEquipSlotCategory equipSlotCategory =
-            (EEquipSlotCategory)(_dataManager.GetExcelSheet<Item>()!.GetRow(mainHand.ItemID % 1_000_000)?.RowId ?? 0);
+            (EEquipSlotCategory)(_dataManager.GetExcelSheet<Item>()!.GetRow(mainHand.ItemId % 1_000_000)?.RowId ?? 0);
         if (equipSlotCategory != EEquipSlotCategory.OneHandedMainHand)
             return new List<SeString>();
 
-        return HandleGearsetItem("Off Hand", gearset, [gearset->ItemsSpan[1]], inventoryItems,
+        return HandleGearsetItem("Off Hand", gearset, [gearset->GetItem(RaptureGearsetModule.GearsetItemIndex.OffHand)], inventoryItems,
             EEquipSlotCategory.Shield, level);
     }
 
@@ -315,29 +314,27 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             for (int i = 0; i < container->Size; ++i)
             {
                 var item = container->GetInventorySlot(i);
-                if (item != null && item->ItemID != 0)
+                if (item != null && item->ItemId != 0)
                 {
-                    var key = (item->ItemID, item->Flags.HasFlag(InventoryItem.ItemFlags.HQ));
+                    var key = (item->ItemId, item->Flags.HasFlag(InventoryItem.ItemFlags.HighQuality));
                     if (!inventoryItems.TryGetValue(key, out var list))
                     {
                         list = new List<MateriaStats>();
                         inventoryItems[key] = list;
                     }
 
+                    // FIXME item->GetMateriaCount is broken on API 10, so this seems to be somewhat slow
+                    List<(MateriaStat, byte)> materias = new();
+                    for (int slot = 0; slot < 5; ++slot)
+                    {
+                        var materiaId = item->Materia[slot];
+                        if (materiaId == 0)
+                            break;
 
-                    byte materiaCount = item->GetMateriaCount();
-                    var materias = Enumerable.Range(0, materiaCount)
-                        .Select<int, (MateriaStat, byte)?>(slot =>
-                        {
-                            if (_gameDataHolder.Materias.TryGetValue(item->GetMateriaId((byte)slot),
-                                    out MateriaStat? value))
-                                return (value, item->GetMateriaGrade((byte)slot));
-                            else
-                                return null;
-                        })
-                        .Where(x => x != null)
-                        .Select(x => x!.Value)
-                        .ToList();
+                        if (_gameDataHolder.Materias.TryGetValue(materiaId, out MateriaStat? value))
+                            materias.Add((value, item->MateriaGrades[slot]));
+                    }
+
                     list.Add(new MateriaStats(materias));
                 }
             }
@@ -352,7 +349,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         if (playerState == null)
             return 0;
 
-        return (byte)playerState->ClassJobLevelArray[_classJobToArrayIndex[classJob]];
+        return (byte)playerState->ClassJobLevels[_classJobToArrayIndex[classJob]];
     }
 
     public void Dispose()

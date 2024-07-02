@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Dalamud;
+using Dalamud.Game;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Gearsetter.Model;
@@ -63,8 +64,8 @@ internal sealed class GameDataHolder
                         { EClassJob.Dancer, x.DNC },
                         { EClassJob.Reaper, x.RPR },
                         { EClassJob.Sage, x.SGE },
-                        { EClassJob.Viper, x.Unknown42 },
-                        { EClassJob.Pictomancer, x.Unknown43 }
+                        { EClassJob.Viper, x.VPR },
+                        { EClassJob.Pictomancer, x.PCT }
                     }
                     .Where(y => y.Value)
                     .Select(y => y.Key)

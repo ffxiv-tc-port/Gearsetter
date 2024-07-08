@@ -141,7 +141,8 @@ internal sealed class EquipmentBrowserWindow : LWindow
                 ImGui.TableHeadersRow();
 
                 ImGui.PushStyleColor(ImGuiCol.HeaderHovered, hoverColor);
-                foreach (var item in itemList.Items.DistinctBy(x => new { x.ItemId, x.Hq, Materia = x.MateriaStats?.GetHashCode() }))
+                foreach (var item in itemList.Items.DistinctBy(x => new
+                             { x.ItemId, x.Hq, Materia = x.MateriaStats?.GetHashCode() }))
                 {
                     if (item is not InventoryItem)
                     {

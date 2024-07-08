@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
+using System.Threading.Tasks;
 using Dalamud.Game.Command;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Game.Text.SeStringHandling.Payloads;
@@ -121,6 +122,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
     private unsafe void ShowUpgrades(byte? level = null)
     {
+        DateTime start = DateTime.Now;
         var inventoryItems = GetAllInventoryItems();
 
         var gearsetModule = RaptureGearsetModule.Instance();
@@ -131,7 +133,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         if (onlyCurrentJob)
             _chatGui.Print("Checking only gearsets for your current class/job...");
 
-        bool anyUpgrade = false;
+        List<GearsetData> gearsets = new List<GearsetData>();
         for (int i = 0; i < 100; ++i)
         {
             var gearset = gearsetModule->GetGearset(i);
@@ -140,44 +142,65 @@ public sealed class GearsetterPlugin : IDalamudPlugin
                 if (onlyCurrentJob && gearset->ClassJob != _clientState.LocalPlayer!.ClassJob.Id)
                     continue;
 
-                anyUpgrade |= HandleGearset(gearset, inventoryItems, level);
+                var gearsetData = PrepareGearset(gearset);
+                if (gearsetData != null)
+                    gearsets.Add(gearsetData);
             }
         }
 
-        if (!anyUpgrade)
-            _chatGui.Print("All your gearsets are OK.");
+        _pluginLog.Information($"Preparing gearsets took {DateTime.Now - start}");
+
+        Task.Run(() =>
+        {
+            start = DateTime.Now;
+            bool anyUpgrade = false;
+            foreach (GearsetData gearset in gearsets)
+                anyUpgrade |= HandleGearset(gearset, inventoryItems, level);
+
+            if (!anyUpgrade)
+                _chatGui.Print("All your gearsets are OK.");
+
+            _pluginLog.Information($"Evaluating gearsets took {DateTime.Now - start}");
+        });
     }
 
-    private unsafe bool HandleGearset(RaptureGearsetModule.GearsetEntry* gearset,
-        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems, byte? level)
+    private unsafe GearsetData? PrepareGearset(RaptureGearsetModule.GearsetEntry* gearset)
     {
         string name = GetGearsetName(gearset);
         if (name.Contains('_', StringComparison.Ordinal) ||
             name.Contains("Eureka", StringComparison.OrdinalIgnoreCase) ||
             name.Contains("Bozja", StringComparison.OrdinalIgnoreCase))
-            return false;
+            return null;
 
-        List<SeString> Handle(string label, RaptureGearsetModule.GearsetItemIndex[] spanIds, EEquipSlotCategory category)
+        return new GearsetData(_dataManager, gearset, name);
+    }
+
+    private bool HandleGearset(GearsetData gearset,
+        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems, byte? level)
+    {
+        List<SeString> Handle(string label, EquipmentItem?[] gearsetItems,
+            EEquipSlotCategory category)
         {
-            return HandleGearsetItem(label, gearset, spanIds.Select(x => gearset->GetItem(x)).ToArray(),
-                inventoryItems, category, level);
+            return HandleGearsetItem(label, gearset, gearsetItems, inventoryItems, category, level);
         }
 
         List<List<SeString>> upgrades = new()
         {
-            Handle("Main Hand", [RaptureGearsetModule.GearsetItemIndex.MainHand], EEquipSlotCategory.None),
+            Handle("Main Hand", [gearset.MainHand], EEquipSlotCategory.None),
             HandleOffHand(gearset, inventoryItems, level),
 
-            Handle("Head", [RaptureGearsetModule.GearsetItemIndex.Head], EEquipSlotCategory.Head),
-            Handle("Body", [RaptureGearsetModule.GearsetItemIndex.Body], EEquipSlotCategory.Body),
-            Handle("Hands", [RaptureGearsetModule.GearsetItemIndex.Hands], EEquipSlotCategory.Hands),
-            Handle("Legs", [RaptureGearsetModule.GearsetItemIndex.Legs], EEquipSlotCategory.Legs),
-            Handle("Feet", [RaptureGearsetModule.GearsetItemIndex.Feet], EEquipSlotCategory.Feet),
+            Handle("Head", [gearset.Head], EEquipSlotCategory.Head),
+            Handle("Body", [gearset.Body], EEquipSlotCategory.Body),
+            Handle("Hands", [gearset.Hands], EEquipSlotCategory.Hands),
+            Handle("Legs", [gearset.Legs], EEquipSlotCategory.Legs),
+            Handle("Feet", [gearset.Feet], EEquipSlotCategory.Feet),
 
-            Handle("Ears", [RaptureGearsetModule.GearsetItemIndex.Ears], EEquipSlotCategory.Ears),
-            Handle("Neck", [RaptureGearsetModule.GearsetItemIndex.Neck], EEquipSlotCategory.Neck),
-            Handle("Wrists", [RaptureGearsetModule.GearsetItemIndex.Wrists], EEquipSlotCategory.Wrists),
-            Handle("Rings", [RaptureGearsetModule.GearsetItemIndex.RingLeft, RaptureGearsetModule.GearsetItemIndex.RingRight], EEquipSlotCategory.Rings),
+            Handle("Ears", [gearset.Ears], EEquipSlotCategory.Ears),
+            Handle("Neck", [gearset.Neck], EEquipSlotCategory.Neck),
+            Handle("Wrists", [gearset.Wrists], EEquipSlotCategory.Wrists),
+            Handle("Rings",
+                [gearset.RingLeft, gearset.RingRight],
+                EEquipSlotCategory.Rings),
         };
 
         List<SeString> flatUpgrades = upgrades.SelectMany(x => x).ToList();
@@ -188,9 +211,9 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             new SeStringBuilder()
                 .Append("Gearset ")
                 .AddUiForeground(1)
-                .Add(_linkPayloads[gearset->Id])
-                .Append($"#{gearset->Id + 1}: ")
-                .Append(name)
+                .Add(_linkPayloads[gearset.Id])
+                .Append($"#{gearset.Id + 1}: ")
+                .Append(gearset.Name)
                 .Add(RawPayload.LinkTerminator)
                 .AddUiForegroundOff()
                 .AddText(level != null ? $" at {level}" : "")
@@ -209,20 +232,18 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private unsafe string GetGearsetName(RaptureGearsetModule.GearsetEntry* gearset)
         => gearset->NameString.Split((char)0)[0];
 
-    private unsafe List<SeString> HandleGearsetItem(string label, RaptureGearsetModule.GearsetEntry* gearset,
-        RaptureGearsetModule.GearsetItem[] gearsetItem,
+    private List<SeString> HandleGearsetItem(string label, GearsetData gearset,
+        EquipmentItem?[] gearsetItems,
         Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems,
         EEquipSlotCategory equipSlotCategory, byte? level)
     {
-        EClassJob classJob = (EClassJob)gearset->ClassJob;
+        EClassJob classJob = gearset.ClassJob;
         var itemLists = _gameDataHolder.GetItemLists(classJob);
 
-        if (gearsetItem.Any(x => x.ItemId > 0))
+        if (equipSlotCategory == EEquipSlotCategory.None && gearsetItems.Any(x => x != null))
         {
-            var firstEquippedItem = gearsetItem.First(x => x.ItemId > 0);
-            equipSlotCategory = (EEquipSlotCategory)(_dataManager.GetExcelSheet<Item>()!
-                .GetRow(firstEquippedItem.ItemId % 1_000_000)
-                ?.EquipSlotCategory?.Row ?? 0);
+            var firstEquippedItem = gearsetItems.First(x => x != null);
+            equipSlotCategory = firstEquippedItem!.EquipSlotCategory;
         }
 
         if (equipSlotCategory == EEquipSlotCategory.None)
@@ -231,14 +252,10 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             return new List<SeString>();
         }
 
-        BaseItem?[] currentItems = gearsetItem.Select(x => new
-            {
-                ItemId = x.ItemId % 1_000_000,
-                Hq = x.ItemId > 1_000_000
-            })
+        BaseItem?[] currentItems = gearsetItems
             .Select(x =>
             {
-                if (x.ItemId == 0)
+                if (x == null)
                     return null;
 
                 return itemLists
@@ -261,7 +278,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             var bestItems = availableList.Items
                 .Where(x => x.Level <= level)
                 .Where(x => x is Model.InventoryItem)
-                .Take(gearsetItem.Length)
+                .Take(gearsetItems.Length)
                 .ToList();
             //_pluginLog.Debug(
             //    $"{equipSlotCategory}: {string.Join("    ", currentItems.Select(x => $"{x?.ItemId}|{x?.Hq}"))}");
@@ -284,20 +301,20 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     }
 
 
-    private unsafe List<SeString> HandleOffHand(RaptureGearsetModule.GearsetEntry* gearset,
+    private unsafe List<SeString> HandleOffHand(GearsetData gearset,
         Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems, byte? level)
     {
-        var mainHand = gearset->GetItem(RaptureGearsetModule.GearsetItemIndex.MainHand);
-        if (mainHand.ItemId == 0)
+        var mainHand = gearset.MainHand;
+        if (mainHand == null)
             return new List<SeString>();
 
         // if it's a twohanded weapon, ignore it
-        EEquipSlotCategory equipSlotCategory =
-            (EEquipSlotCategory)(_dataManager.GetExcelSheet<Item>()!.GetRow(mainHand.ItemId % 1_000_000)?.RowId ?? 0);
+        EEquipSlotCategory equipSlotCategory = mainHand.EquipSlotCategory;
         if (equipSlotCategory != EEquipSlotCategory.OneHandedMainHand)
             return new List<SeString>();
 
-        return HandleGearsetItem("Off Hand", gearset, [gearset->GetItem(RaptureGearsetModule.GearsetItemIndex.OffHand)], inventoryItems,
+        return HandleGearsetItem("Off Hand", gearset, [gearset.OffHand],
+            inventoryItems,
             EEquipSlotCategory.Shield, level);
     }
 

@@ -27,6 +27,8 @@ internal sealed class ItemList
     {
         var preferredItems = Items
             .Where(x => PreferredItems.ContainsKey(x.ItemId))
+            // don't show azeyma's earring for lv90 blue mage
+            .Where(x => x.ItemId != 41081 || ClassJob != EClassJob.BlueMage)
             .ToList();
         var defaultItems = Items
             .Except(preferredItems)

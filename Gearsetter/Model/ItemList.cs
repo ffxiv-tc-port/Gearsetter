@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using Gearsetter.GameData;
+using LLib.GameData;
 
 namespace Gearsetter.Model;
 

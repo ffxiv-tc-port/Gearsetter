@@ -10,6 +10,7 @@ using Dalamud.Plugin.Services;
 using Gearsetter.GameData;
 using Gearsetter.Model;
 using ImGuiNET;
+using LLib.GameData;
 using LLib.ImGui;
 
 namespace Gearsetter.Windows;

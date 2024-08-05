@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Gearsetter.GameData;
 using Gearsetter.Model;
+using LLib.GameData;
 using Lumina.Excel.GeneratedSheets;
 using Xunit;
 

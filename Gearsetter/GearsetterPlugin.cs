@@ -15,6 +15,7 @@ using FFXIVClientStructs.FFXIV.Client.UI.Misc;
 using Gearsetter.GameData;
 using Gearsetter.Model;
 using Gearsetter.Windows;
+using LLib.GameData;
 using Lumina.Excel.GeneratedSheets;
 using GrandCompany = FFXIVClientStructs.FFXIV.Client.UI.Agent.GrandCompany;
 using InventoryItem = FFXIVClientStructs.FFXIV.Client.Game.InventoryItem;

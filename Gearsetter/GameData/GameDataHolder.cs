@@ -6,6 +6,7 @@ using Dalamud.Game;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Gearsetter.Model;
+using LLib.GameData;
 using Lumina.Excel.GeneratedSheets;
 
 namespace Gearsetter.GameData;

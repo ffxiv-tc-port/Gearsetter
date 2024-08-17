@@ -11,10 +11,10 @@ internal sealed class ItemList
 {
     private static readonly ReadOnlyDictionary<uint, byte> PreferredItems = new Dictionary<uint, byte>()
     {
-        { 41081, 90 },
-        { 33648, 80 },
+        { 16039, 50 },
         { 24589, 70 },
-        { 16039, 50 }
+        { 33648, 80 },
+        { 41081, 90 },
     }.AsReadOnly();
 
     public required EClassJob ClassJob { get; init; }
@@ -26,28 +26,10 @@ internal sealed class ItemList
 
     public void Sort()
     {
-        var preferredItems = Items
-            .Where(x => PreferredItems.ContainsKey(x.ItemId))
-            // don't show azeyma's earring for lv90 blue mage
-            .Where(x => x.ItemId != 41081 || ClassJob != EClassJob.BlueMage)
-            .ToList();
-        var defaultItems = Items
-            .Except(preferredItems)
+        Items = Items
             .OrderDescending(new ItemComparer(SubstatPriorities))
             .ToList();
 
-        // insert the preferred items
-        foreach (BaseItem preferredItem in preferredItems)
-        {
-            int level = PreferredItems[preferredItem.ItemId];
-            int index = defaultItems.FindIndex(x => x.Level < level);
-            if (index >= 0)
-                defaultItems.Insert(index, preferredItem);
-            else
-                defaultItems.Add(preferredItem);
-        }
-
-        Items = defaultItems;
     }
 
     public void UpdateStats(Dictionary<EClassJob, EBaseParam> primaryStats, Configuration configuration)
@@ -123,6 +105,11 @@ internal sealed class ItemList
             if (damageA != damageB)
                 return damageA.CompareTo(damageB);
 
+            bool hasPriorityA = TryGetPreferredItemPriority(a, b, out byte priorityA);
+            bool hasPriorityB = TryGetPreferredItemPriority(b, a, out byte priorityB);
+            if ((hasPriorityA || hasPriorityB) && priorityA != priorityB)
+                return priorityA.CompareTo(priorityB);
+
             // gear: primary stat wins
             //
             // we pretend every gear item has at least 1 primary stat to ensure weathered items are sorted last(ish),
@@ -184,6 +171,34 @@ internal sealed class ItemList
 
             // fallback
             return string.CompareOrdinal(a.Name, b.Name);
+        }
+
+        public static bool TryGetPreferredItemPriority(BaseItem self, BaseItem other, out byte priority)
+        {
+            if (PreferredItems.TryGetValue(self.ItemId, out byte levelSelf))
+            {
+                // both items are preferred, sort by level only
+                if (PreferredItems.TryGetValue(other.ItemId, out byte _))
+                {
+                    priority = levelSelf;
+                    return true;
+                }
+
+                // if they're the same level, place the preferrd item last
+                if (levelSelf == other.Level)
+                {
+                    priority = (byte)(levelSelf - 1);
+                    return true;
+                }
+
+                priority = levelSelf;
+                return true;
+            }
+            else
+            {
+                priority = self.Level;
+                return false;
+            }
         }
     }
 }

@@ -29,7 +29,6 @@ internal sealed class ItemList
         Items = Items
             .OrderDescending(new ItemComparer(SubstatPriorities))
             .ToList();
-
     }
 
     public void UpdateStats(Dictionary<EClassJob, EBaseParam> primaryStats, Configuration configuration)

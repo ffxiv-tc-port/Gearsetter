@@ -5,7 +5,7 @@ using Gearsetter.GameData;
 
 namespace Gearsetter.Model;
 
-internal sealed class MateriaStats
+internal sealed class MateriaStats : IEquatable<MateriaStats>
 {
     private readonly List<(EBaseParam, short)> _list;
 
@@ -32,18 +32,33 @@ internal sealed class MateriaStats
 
     public override bool Equals(object? obj)
     {
-        if (obj is not MateriaStats other)
-            return false;
-
-        return _list == other._list;
+        return ReferenceEquals(this, obj) || obj is MateriaStats other && Equals(other);
     }
 
     public override int GetHashCode()
     {
-        int hash = 19;
-        hash = hash * 31 + Count;
-        foreach (var item in _list)
-            hash = hash * 31 + item.GetHashCode();
-        return hash;
+        return _list.GetHashCode();
+    }
+
+    public bool Equals(MateriaStats? other)
+    {
+        if (ReferenceEquals(null, other)) return false;
+        if (ReferenceEquals(this, other)) return true;
+        return _list.SequenceEqual(other._list);
+    }
+
+    public static bool operator ==(MateriaStats? left, MateriaStats? right)
+    {
+        return Equals(left, right);
+    }
+
+    public static bool operator !=(MateriaStats? left, MateriaStats? right)
+    {
+        return !Equals(left, right);
+    }
+
+    public override string ToString()
+    {
+        return $"Materias[{string.Join(", ", _list.Select(x => $"{x.Item1}:{x.Item2}"))}]";
     }
 }

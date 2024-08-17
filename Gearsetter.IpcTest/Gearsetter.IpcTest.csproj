@@ -1,0 +1,8 @@
+﻿<Project Sdk="Dalamud.NET.Sdk/9.0.2">
+    <PropertyGroup>
+        <Version>1.0</Version>
+        <OutputPath>dist</OutputPath>
+    </PropertyGroup>
+
+    <Import Project="..\LLib\LLib.targets"/>
+</Project>

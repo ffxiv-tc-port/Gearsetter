@@ -137,7 +137,8 @@ internal sealed class EquipmentBrowserWindow : LWindow
                 if (includeDamage)
                     ImGui.TableSetupColumn("Damage", ImGuiTableColumnFlags.WidthFixed, 50);
                 foreach (var substat in itemList.SubstatPriorities)
-                    ImGui.TableSetupColumn(_dataHolder.StatNames.GetValueOrDefault(substat, substat.ToString()), ImGuiTableColumnFlags.WidthFixed, 50);
+                    ImGui.TableSetupColumn(_dataHolder.StatNames.GetValueOrDefault(substat, substat.ToString()),
+                        ImGuiTableColumnFlags.WidthFixed, 50);
 
                 ImGui.TableHeadersRow();
 

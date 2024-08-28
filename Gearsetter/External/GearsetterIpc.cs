@@ -17,7 +17,8 @@ internal sealed class GearsetterIpc : IDisposable
     private readonly IPluginLog _pluginLog;
 
     private readonly ICallGateProvider<byte,
-            List<(uint ItemId, InventoryType? SourceInventory, int? SourceInventorySlot)>>
+            List<(uint ItemId, InventoryType? SourceInventory, int? SourceInventorySlot,
+                RaptureGearsetModule.GearsetItemIndex TargetSlot)>>
         _getRecommendationsForGearset;
 
     public GearsetterIpc(GearsetterPlugin plugin, IDalamudPluginInterface pluginInterface, IPluginLog pluginLog)
@@ -25,11 +26,15 @@ internal sealed class GearsetterIpc : IDisposable
         _plugin = plugin;
         _pluginLog = pluginLog;
         _getRecommendationsForGearset =
-            pluginInterface.GetIpcProvider<byte, List<(uint, InventoryType?, int?)>>(IpcGetRecommendationsForGearset);
+            pluginInterface
+                .GetIpcProvider<byte,
+                    List<(uint, InventoryType?, int?, RaptureGearsetModule.GearsetItemIndex TargetSlot)>>(
+                    IpcGetRecommendationsForGearset);
         _getRecommendationsForGearset.RegisterFunc(GetRecommendationsForGearset);
     }
 
-    private unsafe List<(uint ItemId, InventoryType? SourceInventory, int? SourceInventorySlot)>
+    private unsafe List<(uint ItemId, InventoryType? SourceInventory, int? SourceInventorySlot,
+            RaptureGearsetModule.GearsetItemIndex TargetSlot)>
         GetRecommendationsForGearset(byte gearsetId)
     {
         if (gearsetId > 100)
@@ -48,7 +53,7 @@ internal sealed class GearsetterIpc : IDisposable
 
         _pluginLog.Verbose($"Checking for gearset upgrades for gearset {gearset->Id}.");
         return _plugin.GetRecommendedUpgrades(gearset)
-            .Select(x => (x.ItemId, x.SourceInventory, x.SourceInventorySlot))
+            .Select(x => (x.ItemId, x.SourceInventory, x.SourceInventorySlot, x.TargetSlot))
             .ToList();
     }
 

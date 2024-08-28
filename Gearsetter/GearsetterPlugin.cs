@@ -189,7 +189,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private List<RecommendedItemChange> GetRecommendedUpgrades(GearsetData gearset,
         Dictionary<(uint ItemId, bool Hql), List<MateriaStats>> inventoryItems, byte? level)
     {
-        List<RecommendedItemChange> Handle(string label, EquipmentItem?[] gearsetItems,
+        List<RecommendedItemChange> Handle(string label,
+            (EquipmentItem?, RaptureGearsetModule.GearsetItemIndex)[] gearsetItems,
             EEquipSlotCategory category)
         {
             return HandleGearsetItem(label, gearset, gearsetItems, inventoryItems, category, level);
@@ -197,20 +198,25 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
         List<List<RecommendedItemChange>> upgrades = new()
         {
-            Handle("Main Hand", [gearset.MainHand], EEquipSlotCategory.None),
+            Handle("Main Hand", [(gearset.MainHand, RaptureGearsetModule.GearsetItemIndex.MainHand)],
+                EEquipSlotCategory.None),
             HandleOffHand(gearset, inventoryItems, level),
 
-            Handle("Head", [gearset.Head], EEquipSlotCategory.Head),
-            Handle("Body", [gearset.Body], EEquipSlotCategory.Body),
-            Handle("Hands", [gearset.Hands], EEquipSlotCategory.Hands),
-            Handle("Legs", [gearset.Legs], EEquipSlotCategory.Legs),
-            Handle("Feet", [gearset.Feet], EEquipSlotCategory.Feet),
+            Handle("Head", [(gearset.Head, RaptureGearsetModule.GearsetItemIndex.Head)], EEquipSlotCategory.Head),
+            Handle("Body", [(gearset.Body, RaptureGearsetModule.GearsetItemIndex.Body)], EEquipSlotCategory.Body),
+            Handle("Hands", [(gearset.Hands, RaptureGearsetModule.GearsetItemIndex.Hands)], EEquipSlotCategory.Hands),
+            Handle("Legs", [(gearset.Legs, RaptureGearsetModule.GearsetItemIndex.Legs)], EEquipSlotCategory.Legs),
+            Handle("Feet", [(gearset.Feet, RaptureGearsetModule.GearsetItemIndex.Feet)], EEquipSlotCategory.Feet),
 
-            Handle("Ears", [gearset.Ears], EEquipSlotCategory.Ears),
-            Handle("Neck", [gearset.Neck], EEquipSlotCategory.Neck),
-            Handle("Wrists", [gearset.Wrists], EEquipSlotCategory.Wrists),
+            Handle("Ears", [(gearset.Ears, RaptureGearsetModule.GearsetItemIndex.Ears)], EEquipSlotCategory.Ears),
+            Handle("Neck", [(gearset.Neck, RaptureGearsetModule.GearsetItemIndex.Neck)], EEquipSlotCategory.Neck),
+            Handle("Wrists", [(gearset.Wrists, RaptureGearsetModule.GearsetItemIndex.Wrists)],
+                EEquipSlotCategory.Wrists),
             Handle("Rings",
-                [gearset.RingLeft, gearset.RingRight],
+                [
+                    (gearset.RingLeft, RaptureGearsetModule.GearsetItemIndex.RingLeft),
+                    (gearset.RingRight, RaptureGearsetModule.GearsetItemIndex.RingRight)
+                ],
                 EEquipSlotCategory.Rings),
         };
 
@@ -251,17 +257,18 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         => gearset->NameString.Split((char)0)[0];
 
     private List<RecommendedItemChange> HandleGearsetItem(string label, GearsetData gearset,
-        EquipmentItem?[] gearsetItems,
+        (EquipmentItem? Item, RaptureGearsetModule.GearsetItemIndex Slot)[] gearsetItems,
         Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems,
         EEquipSlotCategory equipSlotCategory, byte? level)
     {
         EClassJob classJob = gearset.ClassJob;
+        List<RaptureGearsetModule.GearsetItemIndex> availableGearsetSlots = gearsetItems.Select(x => x.Slot).ToList();
         var itemLists = _gameDataHolder.GetItemLists(classJob);
 
-        if (equipSlotCategory == EEquipSlotCategory.None && gearsetItems.Any(x => x != null))
+        if (equipSlotCategory == EEquipSlotCategory.None && gearsetItems.Any(x => x.Item != null))
         {
-            var firstEquippedItem = gearsetItems.First(x => x != null);
-            equipSlotCategory = firstEquippedItem!.EquipSlotCategory;
+            var firstEquippedItem = gearsetItems.First(x => x.Item != null);
+            equipSlotCategory = firstEquippedItem.Item!.EquipSlotCategory;
         }
 
         if (equipSlotCategory == EEquipSlotCategory.None)
@@ -270,15 +277,16 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             return [];
         }
 
-        BaseItem?[] currentItems = gearsetItems
+        (BaseItem? Item, RaptureGearsetModule.GearsetItemIndex Slot)[] currentItems = gearsetItems
             .Select(x =>
             {
-                if (x == null)
-                    return null;
+                if (x.Item == null)
+                    return (null, x.Slot);
 
-                return itemLists
-                    .SelectMany(y => y.Items.Where(z => x.ItemId == z.ItemId && x.Hq == z.Hq))
+                var baseItem = itemLists
+                    .SelectMany(y => y.Items.Where(z => x.Item.ItemId == z.ItemId && x.Item.Hq == z.Hq))
                     .FirstOrDefault();
+                return (baseItem, x.Slot);
             })
             .ToArray();
 
@@ -299,19 +307,28 @@ public sealed class GearsetterPlugin : IDalamudPlugin
                 .Take(gearsetItems.Length)
                 .ToList();
             //_pluginLog.Debug(
-            //    $"{equipSlotCategory}: {string.Join("    ", currentItems.Select(x => $"{x?.ItemId}|{x?.Hq}"))}");
+            //    $"{equipSlotCategory}: {string.Join("    ", currentItems.Select(x => $"{x.Item}, {x.Slot}"))}");
             foreach (var currentItem in currentItems)
             {
                 var foundIndex = bestItems.FindIndex(x =>
-                    currentItem != null && currentItem.ItemId == x.ItemId && currentItem.Hq == x.Hq);
+                    currentItem.Item != null && currentItem.Item.ItemId == x.ItemId && currentItem.Item.Hq == x.Hq);
                 if (foundIndex >= 0)
+                {
                     bestItems.RemoveAt(foundIndex);
+                    availableGearsetSlots.Remove(currentItem.Slot);
+                }
             }
 
             return bestItems
-                .Select(x => ToItemRecommendation(x,
-                    new SeString(new TextPayload($"{label}: "))
-                        .Append(SeString.CreateItemLink(x.ItemId, x.Hq))))
+                .Select(x =>
+                {
+                    var slot = availableGearsetSlots[0];
+                    availableGearsetSlots.RemoveAt(0);
+
+                    return ToItemRecommendation(x, slot,
+                        new SeString(new TextPayload($"{label}: "))
+                            .Append(SeString.CreateItemLink(x.ItemId, x.Hq)));
+                })
                 .ToList();
         }
         finally
@@ -332,7 +349,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         if (equipSlotCategory != EEquipSlotCategory.OneHandedMainHand)
             return [];
 
-        return HandleGearsetItem("Off Hand", gearset, [gearset.OffHand],
+        return HandleGearsetItem("Off Hand", gearset,
+            [(gearset.OffHand, RaptureGearsetModule.GearsetItemIndex.OffHand)],
             inventoryItems,
             EEquipSlotCategory.Shield, level);
     }
@@ -341,7 +359,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         => RaptureGearsetModule.Instance()->EquipGearset((byte)commandId);
 
 
-    private unsafe RecommendedItemChange ToItemRecommendation(BaseItem baseItem, SeString text)
+    private unsafe RecommendedItemChange ToItemRecommendation(BaseItem baseItem,
+        RaptureGearsetModule.GearsetItemIndex targetSlot, SeString text)
     {
         InventoryManager* inventoryManager = InventoryManager.Instance();
         foreach (var inventoryType in _gameDataHolder.DefaultInventoryTypes)
@@ -357,12 +376,12 @@ public sealed class GearsetterPlugin : IDalamudPlugin
                     MateriaStats actualMateriaStats = FetchMateriaStats(item);
 
                     if (expectedMateriaStats == actualMateriaStats)
-                        return new RecommendedItemChange(item->ItemId, inventoryType, i, text);
+                        return new RecommendedItemChange(item->ItemId, inventoryType, i, targetSlot, text);
                 }
             }
         }
 
-        return new RecommendedItemChange(baseItem.ItemId, null, null, text);
+        return new RecommendedItemChange(baseItem.ItemId, null, null, targetSlot, text);
     }
 
     internal unsafe Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> GetAllInventoryItems()

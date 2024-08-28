@@ -27,7 +27,7 @@ public class GearsetterIpcTestPlugin : IDalamudPlugin
     {
         int currentGearsetIndex = RaptureGearsetModule.Instance()->CurrentGearsetIndex;
         var recommendations = _pluginInterface
-            .GetIpcSubscriber<byte, List<(uint ItemId, InventoryType? SourceInventory, byte? SourceInventorySlot)>>(
+            .GetIpcSubscriber<byte, List<(uint ItemId, InventoryType? SourceInventory, byte? SourceInventorySlot, RaptureGearsetModule.GearsetItemIndex TargetSlot)>>(
                 "Gearsetter.GetRecommendationsForGearset").InvokeFunc((byte)currentGearsetIndex);
         if (recommendations.Count == 0)
             _chatGui.Print($"No recommendations for gearset #{currentGearsetIndex}.");
@@ -35,7 +35,7 @@ public class GearsetterIpcTestPlugin : IDalamudPlugin
         {
             foreach (var recommendation in recommendations)
                 _chatGui.Print(
-                    $"Recommendation: Equip item {recommendation.ItemId} from {recommendation.SourceInventory} (slot {recommendation.SourceInventorySlot})");
+                    $"Recommendation: Equip item {recommendation.ItemId} from {recommendation.SourceInventory} (slot {recommendation.SourceInventorySlot}) as {recommendation.TargetSlot}");
         }
     }
 

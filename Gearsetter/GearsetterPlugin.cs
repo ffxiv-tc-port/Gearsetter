@@ -17,7 +17,7 @@ using Gearsetter.GameData;
 using Gearsetter.Model;
 using Gearsetter.Windows;
 using LLib.GameData;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 using GrandCompany = FFXIVClientStructs.FFXIV.Client.UI.Agent.GrandCompany;
 using InventoryItem = FFXIVClientStructs.FFXIV.Client.Game.InventoryItem;
 
@@ -83,7 +83,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         _pluginInterface.UiBuilder.OpenMainUi += _equipmentBrowserWindow.Toggle;
         _pluginInterface.UiBuilder.OpenConfigUi += _configWindow.Toggle;
 
-        _classJobToArrayIndex = dataManager.GetExcelSheet<ClassJob>()!
+        _classJobToArrayIndex = dataManager.GetExcelSheet<ClassJob>()
             .Where(x => x.RowId > 0 && Enum.IsDefined(typeof(EClassJob), x.RowId))
             .ToDictionary(x => (EClassJob)x.RowId, x => (byte)x.ExpArrayIndex);
     }
@@ -142,7 +142,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             var gearset = gearsetModule->GetGearset(i);
             if (gearset != null && gearset->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists))
             {
-                if (onlyCurrentJob && gearset->ClassJob != _clientState.LocalPlayer!.ClassJob.Id)
+                if (onlyCurrentJob && gearset->ClassJob != _clientState.LocalPlayer!.ClassJob.RowId)
                     continue;
 
                 var gearsetData = PrepareGearset(gearset);

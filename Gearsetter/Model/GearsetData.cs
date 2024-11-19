@@ -1,9 +1,7 @@
-﻿using System.Collections.Generic;
-using Dalamud.Plugin.Services;
+﻿using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.UI.Misc;
-using Gearsetter.GameData;
 using LLib.GameData;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 
 namespace Gearsetter.Model;
 
@@ -35,7 +33,7 @@ internal sealed class GearsetData
         if (gearsetItem.ItemId == 0)
             return null;
 
-        var item = dataManager.GetExcelSheet<Item>()!.GetRow(gearsetItem.ItemId % 1_000_000)!;
+        var item = dataManager.GetExcelSheet<Item>().GetRow(gearsetItem.ItemId % 1_000_000);
         return new EquipmentItem(item, gearsetItem.ItemId > 1_000_000);
     }
 
@@ -49,8 +47,8 @@ internal sealed class GearsetData
     public EquipmentItem? Hands { get; }
     public EquipmentItem? Legs { get; }
     public EquipmentItem? Feet { get; }
-    public EquipmentItem? Ears { get; set; }
-    public EquipmentItem? Neck { get; set; }
+    public EquipmentItem? Ears { get; }
+    public EquipmentItem? Neck { get; }
     public EquipmentItem? Wrists { get; }
     public EquipmentItem? RingLeft { get; }
     public EquipmentItem? RingRight { get; }

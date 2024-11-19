@@ -2,7 +2,11 @@
   "Name": "Gearsetter",
   "Author": "Liza Carvelli",
   "Punchline": "Find gear upgrades",
-  "Description": "",
+  "Description": "Browse through all gear pieces available for each class/job and show possible upgrades",
   "RepoUrl": "https://git.carvel.li/liza/Gearsetter",
-  "IconUrl": "https://plugins.carvel.li/icons/Gearsetter.png"
+  "IconUrl": "https://plugins.carvel.li/icons/Gearsetter.png",
+  "Tags": [
+    "gearset",
+    "gearsets"
+  ]
 }

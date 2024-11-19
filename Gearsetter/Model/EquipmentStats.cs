@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
 using Gearsetter.GameData;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 
 namespace Gearsetter.Model;
 
@@ -12,17 +12,22 @@ internal sealed class EquipmentStats
 
     public EquipmentStats(Item item, bool hq, MateriaStats? materiaStats)
     {
-        _equipmentValues = item.UnkData59.Where(x => x.BaseParam > 0)
-            .ToDictionary(x => (EBaseParam)x.BaseParam, x => x.BaseParamValue);
+        _equipmentValues = Enumerable.Range(0, item.BaseParam.Count)
+            .Where(i => item.BaseParam[i].RowId > 0)
+            .ToDictionary(i => (EBaseParam)item.BaseParam[i].RowId, i => item.BaseParamValue[i]);
         if (hq)
         {
-            foreach (var hqstat in item.UnkData73.Select(x =>
-                         ((EBaseParam)x.BaseParamSpecial, x.BaseParamValueSpecial)))
+            for (int i = 0; i < item.BaseParamSpecial.Count; ++i)
             {
-                if (_equipmentValues.TryGetValue(hqstat.Item1, out var stat))
-                    _equipmentValues[hqstat.Item1] = (short)(stat + hqstat.BaseParamValueSpecial);
+                EBaseParam baseParam = (EBaseParam)item.BaseParamSpecial[i].RowId;
+                if (baseParam == EBaseParam.None)
+                    continue;
+
+                var baseParamValue = item.BaseParamValueSpecial[i];
+                if (_equipmentValues.TryGetValue(baseParam, out var stat))
+                    _equipmentValues[baseParam] = (short)(stat + baseParamValue);
                 else
-                    _equipmentValues[hqstat.Item1] = hqstat.BaseParamValueSpecial;
+                    _equipmentValues[baseParam] = baseParamValue;
             }
         }
 

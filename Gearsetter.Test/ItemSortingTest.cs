@@ -4,7 +4,7 @@ using System.Linq;
 using Gearsetter.GameData;
 using Gearsetter.Model;
 using LLib.GameData;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 using Xunit;
 
 namespace Gearsetter.Test;
@@ -35,7 +35,7 @@ public sealed class ItemSortingTest
             ClassJob = EClassJob.Marauder,
             EquipSlotCategory = EEquipSlotCategory.Ears,
             ItemUiCategory = 41,
-            Items = initialItemIds.Select(rowId => new EquipmentItem(items.GetRow(rowId)!, false))
+            Items = initialItemIds.Select(rowId => new EquipmentItem(items.GetRow(rowId), false))
                 .Cast<BaseItem>()
                 .ToList(),
         };

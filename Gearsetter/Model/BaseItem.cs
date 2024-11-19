@@ -1,6 +1,6 @@
 ﻿using Gearsetter.GameData;
 using LLib.GameData;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 
 namespace Gearsetter.Model;
 
@@ -12,10 +12,10 @@ internal abstract record BaseItem(Item Item, bool Hq, MateriaStats? MateriaStats
     public bool CanBeHq { get; } = Item.CanBeHq;
     public string Name { get; } = Item.Name.ToString();
     public byte Level { get; } = Item.LevelEquip;
-    public uint ItemLevel { get; } = Item.LevelItem.Row;
+    public uint ItemLevel { get; } = Item.LevelItem.RowId;
     public byte Rarity { get; } = Item.Rarity;
-    public EEquipSlotCategory EquipSlotCategory { get; } = (EEquipSlotCategory)Item.EquipSlotCategory.Row;
-    public uint ItemUiCategory { get; } = Item.ItemUICategory.Row;
+    public EEquipSlotCategory EquipSlotCategory { get; } = (EEquipSlotCategory)Item.EquipSlotCategory.RowId;
+    public uint ItemUiCategory { get; } = Item.ItemUICategory.RowId;
     public abstract EClassJob ClassJob { get; init; }
     public EquipmentStats Stats { get; } = new(Item, Hq, MateriaStats);
 

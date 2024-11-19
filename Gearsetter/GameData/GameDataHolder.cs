@@ -7,7 +7,7 @@ using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Gearsetter.Model;
 using LLib.GameData;
-using Lumina.Excel.GeneratedSheets;
+using Lumina.Excel.Sheets;
 
 namespace Gearsetter.GameData;
 
@@ -20,7 +20,7 @@ internal sealed class GameDataHolder
     public GameDataHolder(IDataManager dataManager, Configuration configuration)
     {
         _configuration = configuration;
-        _classJobCategories = dataManager.GetExcelSheet<ClassJobCategory>()!
+        _classJobCategories = dataManager.GetExcelSheet<ClassJobCategory>()
             .ToDictionary(x => x.RowId, x =>
                 new Dictionary<EClassJob, bool>
                     {
@@ -71,33 +71,33 @@ internal sealed class GameDataHolder
                     .Where(y => y.Value)
                     .Select(y => y.Key)
                     .ToList());
-        ClassJobNames = dataManager.GetExcelSheet<ClassJob>()!
+        ClassJobNames = dataManager.GetExcelSheet<ClassJob>()
             .Where(x => x.RowId > 0 && Enum.IsDefined(typeof(EClassJob), x.RowId))
             .OrderBy(x => x.UIPriority)
             .Select(x => ((EClassJob)x.RowId,
                 dataManager.Language == ClientLanguage.English ? x.NameEnglish.ToString() : x.Name.ToString()))
             .ToList();
-        PrimaryStats = dataManager.GetExcelSheet<ClassJob>()!
+        PrimaryStats = dataManager.GetExcelSheet<ClassJob>()
             .Where(x => x.RowId > 0 && Enum.IsDefined(typeof(EClassJob), x.RowId))
             .Where(x => x.PrimaryStat > 0)
             .ToDictionary(x => (EClassJob)x.RowId, x => (EBaseParam)x.PrimaryStat);
-        ItemUiCategoryNames = dataManager.GetExcelSheet<ItemUICategory>()!
+        ItemUiCategoryNames = dataManager.GetExcelSheet<ItemUICategory>()
             .Where(x => x.RowId > 0)
             .OrderBy(x => x.OrderMajor)
             .ThenBy(x => x.OrderMinor)
             .Select(x => (x.RowId, x.Name.ToString()))
             .ToList();
-        Materias = dataManager.GetExcelSheet<Materia>()!
-            .Where(x => x.RowId > 0 && Enum.IsDefined(typeof(EBaseParam), (byte)x.BaseParam.Row))
-            .ToDictionary(x => x.RowId, x => new MateriaStat((EBaseParam)x.BaseParam.Row, x.Value));
+        Materias = dataManager.GetExcelSheet<Materia>()
+            .Where(x => x.RowId > 0 && Enum.IsDefined(typeof(EBaseParam), (byte)x.BaseParam.RowId))
+            .ToDictionary(x => x.RowId, x => new MateriaStat((EBaseParam)x.BaseParam.RowId, x.Value.ToArray()));
 
         _allItemLists =
-            dataManager.GetExcelSheet<Item>()!
+            dataManager.GetExcelSheet<Item>()
                 .Where(x => x.RowId > 1600) // exclude outdated names
-                .Where(x => x.EquipSlotCategory.Row > 0 &&
-                            Enum.IsDefined(typeof(EEquipSlotCategory), x.EquipSlotCategory.Row))
-                .Where(x => x.LevelItem.Row > 1) // ignore ilvl 1 glamour items (also includes starter weapons)
-                .Where(x => x.ItemSeries.Row is <= 3 or >= 28)
+                .Where(x => x.EquipSlotCategory.RowId > 0 &&
+                            Enum.IsDefined(typeof(EEquipSlotCategory), x.EquipSlotCategory.RowId))
+                .Where(x => x.LevelItem.RowId > 1) // ignore ilvl 1 glamour items (also includes starter weapons)
+                .Where(x => x.ItemSeries.RowId is <= 3 or >= 28)
                 .SelectMany(LoadItem)
                 .SelectMany(x => x.ClassJobs.Select(y => x.Item with { ClassJob = y }))
                 .Where(x => x.ClassJob != EClassJob.Scholar || x.ItemUiCategory != 10) // exclude ACN weapon as scholar
@@ -206,7 +206,7 @@ internal sealed class GameDataHolder
 
     private IEnumerable<(EquipmentItem Item, List<EClassJob> ClassJobs)> LoadItem(Item item)
     {
-        var classJobCategories = _classJobCategories[item.ClassJobCategory.Row];
+        var classJobCategories = _classJobCategories[item.ClassJobCategory.RowId];
         yield return (new EquipmentItem(item, false), classJobCategories);
         if (item.CanBeHq)
             yield return (new EquipmentItem(item, true), classJobCategories);

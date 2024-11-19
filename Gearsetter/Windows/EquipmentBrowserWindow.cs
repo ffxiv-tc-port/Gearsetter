@@ -62,7 +62,7 @@ internal sealed class EquipmentBrowserWindow : LWindow
     public override void OnOpen()
     {
         if (_clientState.LocalPlayer != null)
-            _selectedClassJob = ((EClassJob)_clientState.LocalPlayer.ClassJob.Id).AsJob();
+            _selectedClassJob = ((EClassJob)_clientState.LocalPlayer.ClassJob.RowId).AsJob();
 
         UpdateEquipmentCategories();
     }

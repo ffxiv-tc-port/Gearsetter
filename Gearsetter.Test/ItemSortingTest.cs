@@ -4,6 +4,7 @@ using System.Linq;
 using Gearsetter.GameData;
 using Gearsetter.Model;
 using LLib.GameData;
+using LLib.Gear;
 using Lumina.Excel.Sheets;
 using Xunit;
 
@@ -16,6 +17,10 @@ public sealed class ItemSortingTest
     [Fact]
     public void Test1()
     {
+        var gearStatsCalculator = new GearStatsCalculator(_lumina.GetExcelSheet<ItemLevel>()!,
+            _lumina.GetExcelSheet<ExtendedBaseParam>()!,
+            _lumina.GetExcelSheet<Materia>()!,
+            _lumina.GetExcelSheet<Item>()!);
         var items = _lumina.GetExcelSheet<Item>()!;
         List<uint> initialItemIds =
         [
@@ -30,12 +35,13 @@ public sealed class ItemSortingTest
             32558,
         ];
 
+
         var itemList = new ItemList
         {
             ClassJob = EClassJob.Marauder,
             EquipSlotCategory = EEquipSlotCategory.Ears,
             ItemUiCategory = 41,
-            Items = initialItemIds.Select(rowId => new EquipmentItem(items.GetRow(rowId), false))
+            Items = initialItemIds.Select(rowId => new EquipmentItem(items.GetRow(rowId), false, gearStatsCalculator.CalculateGearStats(items.GetRow(rowId), false, [])))
                 .Cast<BaseItem>()
                 .ToList(),
         };
@@ -45,10 +51,7 @@ public sealed class ItemSortingTest
             .Where(x => x.PrimaryStat > 0)
             .ToDictionary(x => (EClassJob)x.RowId, x => (EBaseParam)x.PrimaryStat);
 
-        var itemLevelCaps = new ItemLevelCaps(_lumina.GetExcelSheet<ItemLevel>()!,
-            _lumina.GetExcelSheet<ItemLevelCaps.ExtendedBaseParam>()!);
-
-        itemList.UpdateStats(primaryStats, new Configuration(), itemLevelCaps);
+        itemList.UpdateStats(primaryStats, new Configuration());
         itemList.Sort();
 
         List<uint> expectedItems =

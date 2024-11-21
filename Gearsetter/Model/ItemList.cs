@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using Gearsetter.GameData;
 using LLib.GameData;
+using LLib.Gear;
 
 namespace Gearsetter.Model;
 
@@ -23,17 +24,15 @@ internal sealed class ItemList
     public required List<BaseItem> Items { get; set; }
     public EBaseParam PrimaryStat { get; set; }
     public IReadOnlyList<EBaseParam> SubstatPriorities { get; private set; } = new List<EBaseParam>();
-    public ItemLevelCaps ItemLevelCaps { get; private set; } = null!;
 
     public void Sort()
     {
         Items = Items
-            .OrderDescending(new ItemComparer(SubstatPriorities, ItemLevelCaps))
+            .OrderDescending(new ItemComparer(SubstatPriorities))
             .ToList();
     }
 
-    public void UpdateStats(Dictionary<EClassJob, EBaseParam> primaryStats, Configuration configuration,
-        ItemLevelCaps itemLevelCaps)
+    public void UpdateStats(Dictionary<EClassJob, EBaseParam> primaryStats, Configuration configuration)
     {
         if (ClassJob.IsTank())
             SubstatPriorities = configuration.StatPriorityTanks;
@@ -52,21 +51,19 @@ internal sealed class ItemList
         else
             SubstatPriorities = [];
 
-        ItemLevelCaps = itemLevelCaps;
-
         if (primaryStats.TryGetValue(ClassJob, out EBaseParam primaryStat))
         {
             PrimaryStat = primaryStat;
             Items = Items
                 .Where(x => x is EquipmentItem)
                 .Cast<EquipmentItem>()
-                .Select(x => x with { PrimaryStat = x.Stats.Get(primaryStat, itemLevelCaps) })
+                .Select(x => x with { PrimaryStat = x.Stats.Get(primaryStat) })
                 .Cast<BaseItem>()
                 .ToList();
         }
     }
 
-    public void ApplyFromInventory(Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems,
+    public void ApplyFromInventory(Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> inventoryItems,
         bool includeWithoutMateria)
     {
         foreach (var inventoryItem in inventoryItems)
@@ -76,13 +73,13 @@ internal sealed class ItemList
             if (basicItem == null)
                 continue;
 
-            foreach (var materias in inventoryItem.Value)
+            foreach (var inventoryStats in inventoryItem.Value)
             {
-                if (includeWithoutMateria || materias.Values.Count > 0)
+                if (includeWithoutMateria || inventoryStats.HasMateria())
                     Items.Add(
-                        new InventoryItem(basicItem.Item, basicItem.Hq, materias, basicItem.ClassJob)
+                        new InventoryItem(basicItem.Item, basicItem.Hq, inventoryStats, basicItem.ClassJob)
                         {
-                            PrimaryStat = basicItem.Stats.Get(PrimaryStat, ItemLevelCaps)
+                            PrimaryStat = basicItem.Stats.Get(PrimaryStat)
                         });
             }
         }
@@ -95,10 +92,7 @@ internal sealed class ItemList
         Items.RemoveAll(x => x is InventoryItem);
     }
 
-    private sealed class ItemComparer(
-        IReadOnlyList<EBaseParam> substatPriorities,
-        ItemLevelCaps itemLevelCaps
-    ) : IComparer<BaseItem>
+    private sealed class ItemComparer(IReadOnlyList<EBaseParam> substatPriorities) : IComparer<BaseItem>
     {
         public int Compare(BaseItem? a, BaseItem? b)
         {
@@ -127,14 +121,14 @@ internal sealed class ItemList
                 return primaryStatA.CompareTo(primaryStatB);
 
             // gear: vitality wins
-            int vitalityA = a.Stats.Get(EBaseParam.Vitality, itemLevelCaps);
-            int vitalityB = b.Stats.Get(EBaseParam.Vitality, itemLevelCaps);
+            int vitalityA = a.Stats.Get(EBaseParam.Vitality);
+            int vitalityB = b.Stats.Get(EBaseParam.Vitality);
             if (vitalityA != vitalityB)
                 return vitalityA.CompareTo(vitalityB);
 
             // sum of relevant substats
-            int sumOfSubstatsA = substatPriorities.Sum(x => a.Stats.Get(x, itemLevelCaps));
-            int sumOfSubstatsB = substatPriorities.Sum(x => b.Stats.Get(x, itemLevelCaps));
+            int sumOfSubstatsA = substatPriorities.Sum(x => a.Stats.Get(x));
+            int sumOfSubstatsB = substatPriorities.Sum(x => b.Stats.Get(x));
 
             // some relics have no substats in the sheets, since they can be allocated dynamically
             // they are -generally- better/equal to any other weapon on that ilvl
@@ -169,8 +163,8 @@ internal sealed class ItemList
             // individual substats
             foreach (EBaseParam substat in substatPriorities)
             {
-                int substatA = a.Stats.Get(substat, itemLevelCaps);
-                int substatB = b.Stats.Get(substat, itemLevelCaps);
+                int substatA = a.Stats.Get(substat);
+                int substatB = b.Stats.Get(substat);
                 if (substatA != substatB)
                     return substatA.CompareTo(substatB);
             }

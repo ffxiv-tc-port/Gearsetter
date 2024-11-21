@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 using Dalamud.Configuration;
-using Gearsetter.GameData;
+using LLib.Gear;
 
 namespace Gearsetter;
 

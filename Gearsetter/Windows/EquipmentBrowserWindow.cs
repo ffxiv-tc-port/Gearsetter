@@ -11,6 +11,7 @@ using Gearsetter.GameData;
 using Gearsetter.Model;
 using ImGuiNET;
 using LLib.GameData;
+using LLib.Gear;
 using LLib.ImGui;
 
 namespace Gearsetter.Windows;
@@ -111,7 +112,7 @@ internal sealed class EquipmentBrowserWindow : LWindow
         ImGui.SameLine();
         ImGui.Checkbox("Hide normal quality items", ref _hideNormalQualityItems);
 
-        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> ownedItems = _plugin.GetAllInventoryItems();
+        Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> ownedItems = _plugin.GetAllInventoryItems();
         try
         {
             itemList.ApplyFromInventory(ownedItems, _onlyShowOwnedItems);
@@ -144,7 +145,7 @@ internal sealed class EquipmentBrowserWindow : LWindow
 
                 ImGui.PushStyleColor(ImGuiCol.HeaderHovered, hoverColor);
                 foreach (var item in itemList.Items.DistinctBy(x => new
-                             { x.ItemId, x.Hq, Materia = x.MateriaStats?.GetHashCode() }))
+                             { x.ItemId, x.Hq, Stats = x.Stats.GetHashCode() }))
                 {
                     if (item is not InventoryItem)
                     {
@@ -174,9 +175,9 @@ internal sealed class EquipmentBrowserWindow : LWindow
                         string name = item.Name;
                         if (item.Hq)
                             name += $" {SeIconChar.HighQuality.ToIconString()}";
-                        if (item is InventoryItem { MateriaStats: not null } inventoryItem)
+                        if (item is InventoryItem { Stats.MateriaCount: > 0 } inventoryItem)
                             name +=
-                                $"    {string.Join("", Enumerable.Repeat(SeIconChar.Circle.ToIconString(), inventoryItem.MateriaStats!.Count))}";
+                                $"    {string.Join("", Enumerable.Repeat(SeIconChar.Circle.ToIconString(), inventoryItem.Stats.MateriaCount))}";
 
                         if (color != null)
                             ImGui.PushStyleColor(ImGuiCol.Text, color.Value);
@@ -215,13 +216,19 @@ internal sealed class EquipmentBrowserWindow : LWindow
                         if (ImGui.TableNextColumn())
                         {
                             var estat = item.Stats.GetEquipment(substat);
-                            var mstat = item.Stats.GetMateria(substat, itemList.ItemLevelCaps);
+                            var mstat = item.Stats.GetMateria(substat);
                             if (estat == 0 && mstat == 0)
                                 ImGui.Text("-");
                             else if (mstat == 0)
                                 ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{estat}"));
                             else
                                 ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{estat} +{mstat}"));
+
+                            if (item.Stats.IsOvercapped(substat))
+                            {
+                                ImGui.SameLine();
+                                ImGui.Text(SeIconChar.Debuff.ToIconString());
+                            }
                         }
                     }
                 }

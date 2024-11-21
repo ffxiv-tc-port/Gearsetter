@@ -1,12 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Dalamud;
 using Dalamud.Game;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Gearsetter.Model;
 using LLib.GameData;
+using LLib.Gear;
 using Lumina.Excel.Sheets;
 
 namespace Gearsetter.GameData;
@@ -14,14 +14,15 @@ namespace Gearsetter.GameData;
 internal sealed class GameDataHolder
 {
     private readonly Configuration _configuration;
-    private readonly ItemLevelCaps _itemLevelCaps;
+    private readonly GearStatsCalculator _gearStatsCalculator;
     private readonly Dictionary<uint, List<EClassJob>> _classJobCategories;
     private readonly IReadOnlyList<ItemList> _allItemLists;
 
-    public GameDataHolder(IDataManager dataManager, Configuration configuration)
+    public GameDataHolder(IDataManager dataManager, Configuration configuration,
+        GearStatsCalculator gearStatsCalculator)
     {
         _configuration = configuration;
-        _itemLevelCaps = new ItemLevelCaps(dataManager);
+        _gearStatsCalculator = gearStatsCalculator;
         _classJobCategories = dataManager.GetExcelSheet<ClassJobCategory>()
             .ToDictionary(x => x.RowId, x =>
                 new Dictionary<EClassJob, bool>
@@ -89,9 +90,6 @@ internal sealed class GameDataHolder
             .ThenBy(x => x.OrderMinor)
             .Select(x => (x.RowId, x.Name.ToString()))
             .ToList();
-        Materias = dataManager.GetExcelSheet<Materia>()
-            .Where(x => x.RowId > 0 && Enum.IsDefined(typeof(EBaseParam), (byte)x.BaseParam.RowId))
-            .ToDictionary(x => x.RowId, x => new MateriaStat((EBaseParam)x.BaseParam.RowId, x.Value.ToArray()));
 
         _allItemLists =
             dataManager.GetExcelSheet<Item>()
@@ -137,7 +135,6 @@ internal sealed class GameDataHolder
     public IReadOnlyList<(EClassJob ClassJob, string Name)> ClassJobNames { get; }
     public IReadOnlyList<(uint ItemUiCategory, string Name)> ItemUiCategoryNames { get; }
     public Dictionary<EClassJob, EBaseParam> PrimaryStats { get; }
-    public Dictionary<uint, MateriaStat> Materias { get; set; }
 
     public Dictionary<EBaseParam, string> StatNames { get; } = new()
     {
@@ -181,7 +178,7 @@ internal sealed class GameDataHolder
     {
         foreach (ItemList itemList in _allItemLists)
         {
-            itemList.UpdateStats(PrimaryStats, _configuration, _itemLevelCaps);
+            itemList.UpdateStats(PrimaryStats, _configuration);
             itemList.Sort();
         }
     }
@@ -209,8 +206,14 @@ internal sealed class GameDataHolder
     private IEnumerable<(EquipmentItem Item, List<EClassJob> ClassJobs)> LoadItem(Item item)
     {
         var classJobCategories = _classJobCategories[item.ClassJobCategory.RowId];
-        yield return (new EquipmentItem(item, false), classJobCategories);
+        yield return (
+            new EquipmentItem(item, false, _gearStatsCalculator.CalculateGearStats(item, false, [])),
+            classJobCategories);
         if (item.CanBeHq)
-            yield return (new EquipmentItem(item, true), classJobCategories);
+        {
+            yield return (
+                new EquipmentItem(item, true, _gearStatsCalculator.CalculateGearStats(item, true, [])),
+                classJobCategories);
+        }
     }
 }

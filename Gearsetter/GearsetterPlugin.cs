@@ -17,6 +17,7 @@ using Gearsetter.GameData;
 using Gearsetter.Model;
 using Gearsetter.Windows;
 using LLib.GameData;
+using LLib.Gear;
 using Lumina.Excel.Sheets;
 using GrandCompany = FFXIVClientStructs.FFXIV.Client.UI.Agent.GrandCompany;
 using InventoryItem = FFXIVClientStructs.FFXIV.Client.Game.InventoryItem;
@@ -35,6 +36,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private readonly IClientState _clientState;
     private readonly GearsetterIpc _gearsetterIpc;
     private readonly Configuration _configuration;
+    private readonly GearStatsCalculator _gearStatsCalculator;
     private readonly GameDataHolder _gameDataHolder;
     private readonly EquipmentBrowserWindow _equipmentBrowserWindow;
     private readonly ConfigWindow _configWindow;
@@ -62,7 +64,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         }
 
         _configuration = configuration;
-        _gameDataHolder = new GameDataHolder(dataManager, _configuration);
+        _gearStatsCalculator = new GearStatsCalculator(dataManager);
+        _gameDataHolder = new GameDataHolder(dataManager, _configuration, _gearStatsCalculator);
         _equipmentBrowserWindow = new EquipmentBrowserWindow(this, _gameDataHolder, _clientState, _chatGui);
         _windowSystem.AddWindow(_equipmentBrowserWindow);
         _configWindow = new ConfigWindow(_pluginInterface, _configuration);
@@ -175,19 +178,19 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             name.Contains("Bozja", StringComparison.OrdinalIgnoreCase))
             return null;
 
-        return new GearsetData(_dataManager, gearset, name);
+        return new GearsetData(_dataManager, _gearStatsCalculator, gearset, name);
     }
 
     internal unsafe List<RecommendedItemChange> GetRecommendedUpgrades(RaptureGearsetModule.GearsetEntry* gearset,
         byte? level = null)
     {
-        GearsetData gearsetData = new GearsetData(_dataManager, gearset, GetGearsetName(gearset));
-        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems = GetAllInventoryItems();
+        GearsetData gearsetData = new GearsetData(_dataManager, _gearStatsCalculator, gearset, GetGearsetName(gearset));
+        Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> inventoryItems = GetAllInventoryItems();
         return GetRecommendedUpgrades(gearsetData, inventoryItems, level);
     }
 
     private List<RecommendedItemChange> GetRecommendedUpgrades(GearsetData gearset,
-        Dictionary<(uint ItemId, bool Hql), List<MateriaStats>> inventoryItems, byte? level)
+        Dictionary<(uint ItemId, bool Hql), List<EquipmentStats>> inventoryItems, byte? level)
     {
         List<RecommendedItemChange> Handle(string label,
             (EquipmentItem?, RaptureGearsetModule.GearsetItemIndex)[] gearsetItems,
@@ -225,7 +228,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
 
     private bool HandleGearset(GearsetData gearset,
-        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems, byte? level)
+        Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> inventoryItems, byte? level)
     {
         List<RecommendedItemChange> upgrades = GetRecommendedUpgrades(gearset, inventoryItems, level);
         if (upgrades.Count == 0)
@@ -258,7 +261,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
     private List<RecommendedItemChange> HandleGearsetItem(string label, GearsetData gearset,
         (EquipmentItem? Item, RaptureGearsetModule.GearsetItemIndex Slot)[] gearsetItems,
-        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems,
+        Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> inventoryItems,
         EEquipSlotCategory equipSlotCategory, byte? level)
     {
         EClassJob classJob = gearset.ClassJob;
@@ -338,7 +341,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     }
 
     private List<RecommendedItemChange> HandleOffHand(GearsetData gearset,
-        Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> inventoryItems, byte? level)
+        Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> inventoryItems, byte? level)
     {
         var mainHand = gearset.MainHand;
         if (mainHand == null)
@@ -372,8 +375,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
                 if (item != null && item->ItemId == baseItem.ItemId &&
                     item->Flags.HasFlag(InventoryItem.ItemFlags.HighQuality) == baseItem.Hq)
                 {
-                    MateriaStats expectedMateriaStats = baseItem.MateriaStats ?? new([]);
-                    MateriaStats actualMateriaStats = FetchMateriaStats(item);
+                    EquipmentStats expectedMateriaStats = baseItem.Stats;
+                    EquipmentStats actualMateriaStats = FetchMateriaStats(item);
 
                     if (expectedMateriaStats == actualMateriaStats)
                         return new RecommendedItemChange(item->ItemId, inventoryType, i, targetSlot, text);
@@ -384,9 +387,9 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         return new RecommendedItemChange(baseItem.ItemId, null, null, targetSlot, text);
     }
 
-    internal unsafe Dictionary<(uint ItemId, bool Hq), List<MateriaStats>> GetAllInventoryItems()
+    internal unsafe Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> GetAllInventoryItems()
     {
-        Dictionary<(uint, bool), List<MateriaStats>> inventoryItems = new();
+        Dictionary<(uint, bool), List<EquipmentStats>> inventoryItems = new();
         InventoryManager* inventoryManager = InventoryManager.Instance();
         foreach (var inventoryType in _gameDataHolder.DefaultInventoryTypes)
         {
@@ -399,7 +402,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
                     var key = (item->ItemId, item->Flags.HasFlag(InventoryItem.ItemFlags.HighQuality));
                     if (!inventoryItems.TryGetValue(key, out var list))
                     {
-                        list = new List<MateriaStats>();
+                        list = new List<EquipmentStats>();
                         inventoryItems[key] = list;
                     }
 
@@ -411,22 +414,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         return inventoryItems;
     }
 
-    private unsafe MateriaStats FetchMateriaStats(InventoryItem* item)
-    {
-        // FIXME item->GetMateriaCount is broken on API 10, so this seems to be somewhat slow
-        List<(MateriaStat, byte)> materias = new();
-        for (int slot = 0; slot < 5; ++slot)
-        {
-            var materiaId = item->Materia[slot];
-            if (materiaId == 0)
-                break;
-
-            if (_gameDataHolder.Materias.TryGetValue(materiaId, out MateriaStat? value))
-                materias.Add((value, item->MateriaGrades[slot]));
-        }
-
-        return new MateriaStats(materias);
-    }
+    private unsafe EquipmentStats FetchMateriaStats(InventoryItem* item)
+        => _gearStatsCalculator.CalculateGearStats(item);
 
     internal unsafe byte GetLevel(EClassJob classJob)
     {

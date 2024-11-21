@@ -1,11 +1,12 @@
 ﻿using System.Linq;
 using Gearsetter.GameData;
 using LLib.GameData;
+using LLib.Gear;
 using Lumina.Excel.Sheets;
 
 namespace Gearsetter.Model;
 
-internal abstract record BaseItem(Item Item, bool Hq, MateriaStats? MateriaStats = null)
+internal abstract record BaseItem(Item Item, bool Hq, EquipmentStats Stats)
 {
     public Item Item { get; } = Item;
     public uint ItemId { get; } = Item.RowId;
@@ -18,7 +19,7 @@ internal abstract record BaseItem(Item Item, bool Hq, MateriaStats? MateriaStats
     public EEquipSlotCategory EquipSlotCategory { get; } = (EEquipSlotCategory)Item.EquipSlotCategory.RowId;
     public uint ItemUiCategory { get; } = Item.ItemUICategory.RowId;
     public abstract EClassJob ClassJob { get; init; }
-    public EquipmentStats Stats { get; } = new(Item, Hq, MateriaStats);
+    public EquipmentStats Stats { get; } = Stats;
 
     public int PrimaryStat { get; init; } = -1;
 
@@ -27,9 +28,9 @@ internal abstract record BaseItem(Item Item, bool Hq, MateriaStats? MateriaStats
         get
         {
             if (ClassJob.DealsMagicDamage())
-                return Item.DamageMag + Stats.Get(EBaseParam.DamageMag, null);
+                return Item.DamageMag + Stats.Get(EBaseParam.DamageMag);
             else if (ClassJob.DealsPhysicalDamage())
-                return Item.DamagePhys + Stats.Get(EBaseParam.DamagePhys, null);
+                return Item.DamagePhys + Stats.Get(EBaseParam.DamagePhys);
             else
                 return 0;
         }

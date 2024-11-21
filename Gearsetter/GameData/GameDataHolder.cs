@@ -14,12 +14,14 @@ namespace Gearsetter.GameData;
 internal sealed class GameDataHolder
 {
     private readonly Configuration _configuration;
+    private readonly ItemLevelCaps _itemLevelCaps;
     private readonly Dictionary<uint, List<EClassJob>> _classJobCategories;
     private readonly IReadOnlyList<ItemList> _allItemLists;
 
     public GameDataHolder(IDataManager dataManager, Configuration configuration)
     {
         _configuration = configuration;
+        _itemLevelCaps = new ItemLevelCaps(dataManager);
         _classJobCategories = dataManager.GetExcelSheet<ClassJobCategory>()
             .ToDictionary(x => x.RowId, x =>
                 new Dictionary<EClassJob, bool>
@@ -179,7 +181,7 @@ internal sealed class GameDataHolder
     {
         foreach (ItemList itemList in _allItemLists)
         {
-            itemList.UpdateStats(PrimaryStats, _configuration);
+            itemList.UpdateStats(PrimaryStats, _configuration, _itemLevelCaps);
             itemList.Sort();
         }
     }

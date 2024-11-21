@@ -1,5 +1,4 @@
-﻿using Gearsetter.GameData;
-using LLib.GameData;
+﻿using LLib.GameData;
 using Lumina.Excel.Sheets;
 
 namespace Gearsetter.Model;

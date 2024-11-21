@@ -45,7 +45,10 @@ public sealed class ItemSortingTest
             .Where(x => x.PrimaryStat > 0)
             .ToDictionary(x => (EClassJob)x.RowId, x => (EBaseParam)x.PrimaryStat);
 
-        itemList.UpdateStats(primaryStats, new Configuration());
+        var itemLevelCaps = new ItemLevelCaps(_lumina.GetExcelSheet<ItemLevel>()!,
+            _lumina.GetExcelSheet<ItemLevelCaps.ExtendedBaseParam>()!);
+
+        itemList.UpdateStats(primaryStats, new Configuration(), itemLevelCaps);
         itemList.Sort();
 
         List<uint> expectedItems =

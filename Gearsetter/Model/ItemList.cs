@@ -22,16 +22,18 @@ internal sealed class ItemList
     public required uint ItemUiCategory { get; init; }
     public required List<BaseItem> Items { get; set; }
     public EBaseParam PrimaryStat { get; set; }
-    public IReadOnlyList<EBaseParam> SubstatPriorities { get; set; } = new List<EBaseParam>();
+    public IReadOnlyList<EBaseParam> SubstatPriorities { get; private set; } = new List<EBaseParam>();
+    public ItemLevelCaps ItemLevelCaps { get; private set; } = null!;
 
     public void Sort()
     {
         Items = Items
-            .OrderDescending(new ItemComparer(SubstatPriorities))
+            .OrderDescending(new ItemComparer(SubstatPriorities, ItemLevelCaps))
             .ToList();
     }
 
-    public void UpdateStats(Dictionary<EClassJob, EBaseParam> primaryStats, Configuration configuration)
+    public void UpdateStats(Dictionary<EClassJob, EBaseParam> primaryStats, Configuration configuration,
+        ItemLevelCaps itemLevelCaps)
     {
         if (ClassJob.IsTank())
             SubstatPriorities = configuration.StatPriorityTanks;
@@ -50,13 +52,15 @@ internal sealed class ItemList
         else
             SubstatPriorities = [];
 
+        ItemLevelCaps = itemLevelCaps;
+
         if (primaryStats.TryGetValue(ClassJob, out EBaseParam primaryStat))
         {
             PrimaryStat = primaryStat;
             Items = Items
                 .Where(x => x is EquipmentItem)
                 .Cast<EquipmentItem>()
-                .Select(x => x with { PrimaryStat = x.Stats.Get(primaryStat) })
+                .Select(x => x with { PrimaryStat = x.Stats.Get(primaryStat, itemLevelCaps) })
                 .Cast<BaseItem>()
                 .ToList();
         }
@@ -78,7 +82,7 @@ internal sealed class ItemList
                     Items.Add(
                         new InventoryItem(basicItem.Item, basicItem.Hq, materias, basicItem.ClassJob)
                         {
-                            PrimaryStat = basicItem.Stats.Get(PrimaryStat)
+                            PrimaryStat = basicItem.Stats.Get(PrimaryStat, ItemLevelCaps)
                         });
             }
         }
@@ -91,7 +95,10 @@ internal sealed class ItemList
         Items.RemoveAll(x => x is InventoryItem);
     }
 
-    private sealed class ItemComparer(IReadOnlyList<EBaseParam> substatPriorities) : IComparer<BaseItem>
+    private sealed class ItemComparer(
+        IReadOnlyList<EBaseParam> substatPriorities,
+        ItemLevelCaps itemLevelCaps
+    ) : IComparer<BaseItem>
     {
         public int Compare(BaseItem? a, BaseItem? b)
         {
@@ -120,14 +127,14 @@ internal sealed class ItemList
                 return primaryStatA.CompareTo(primaryStatB);
 
             // gear: vitality wins
-            int vitalityA = a.Stats.Get(EBaseParam.Vitality);
-            int vitalityB = b.Stats.Get(EBaseParam.Vitality);
+            int vitalityA = a.Stats.Get(EBaseParam.Vitality, itemLevelCaps);
+            int vitalityB = b.Stats.Get(EBaseParam.Vitality, itemLevelCaps);
             if (vitalityA != vitalityB)
                 return vitalityA.CompareTo(vitalityB);
 
             // sum of relevant substats
-            int sumOfSubstatsA = substatPriorities.Sum(x => a.Stats.Get(x));
-            int sumOfSubstatsB = substatPriorities.Sum(x => b.Stats.Get(x));
+            int sumOfSubstatsA = substatPriorities.Sum(x => a.Stats.Get(x, itemLevelCaps));
+            int sumOfSubstatsB = substatPriorities.Sum(x => b.Stats.Get(x, itemLevelCaps));
 
             // some relics have no substats in the sheets, since they can be allocated dynamically
             // they are -generally- better/equal to any other weapon on that ilvl
@@ -162,8 +169,8 @@ internal sealed class ItemList
             // individual substats
             foreach (EBaseParam substat in substatPriorities)
             {
-                int substatA = a.Stats.Get(substat);
-                int substatB = b.Stats.Get(substat);
+                int substatA = a.Stats.Get(substat, itemLevelCaps);
+                int substatB = b.Stats.Get(substat, itemLevelCaps);
                 if (substatA != substatB)
                     return substatA.CompareTo(substatB);
             }
@@ -172,7 +179,7 @@ internal sealed class ItemList
             return string.CompareOrdinal(a.Name, b.Name);
         }
 
-        public static bool TryGetPreferredItemPriority(BaseItem self, BaseItem other, out byte priority)
+        private static bool TryGetPreferredItemPriority(BaseItem self, BaseItem other, out byte priority)
         {
             if (PreferredItems.TryGetValue(self.ItemId, out byte levelSelf))
             {

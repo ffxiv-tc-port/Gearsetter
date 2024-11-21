@@ -1,4 +1,5 @@
-﻿using Gearsetter.GameData;
+﻿using System.Linq;
+using Gearsetter.GameData;
 using LLib.GameData;
 using Lumina.Excel.Sheets;
 
@@ -26,24 +27,16 @@ internal abstract record BaseItem(Item Item, bool Hq, MateriaStats? MateriaStats
         get
         {
             if (ClassJob.DealsMagicDamage())
-                return Item.DamageMag + Stats.Get(EBaseParam.DamageMag);
+                return Item.DamageMag + Stats.Get(EBaseParam.DamageMag, null);
             else if (ClassJob.DealsPhysicalDamage())
-                return Item.DamagePhys + Stats.Get(EBaseParam.DamagePhys);
+                return Item.DamagePhys + Stats.Get(EBaseParam.DamagePhys, null);
             else
                 return 0;
         }
     }
 
     public bool HasAnyStat(params EBaseParam[] substats)
-    {
-        foreach (EBaseParam substat in substats)
-        {
-            if (Stats.Get(substat) > 0)
-                return true;
-        }
-
-        return false;
-    }
+        => substats.Any(x => Stats.Has(x));
 
     public bool IsCombatRelicWithoutSubstats()
     {

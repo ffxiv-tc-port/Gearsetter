@@ -215,7 +215,7 @@ internal sealed class EquipmentBrowserWindow : LWindow
                         if (ImGui.TableNextColumn())
                         {
                             var estat = item.Stats.GetEquipment(substat);
-                            var mstat = item.Stats.GetMateria(substat);
+                            var mstat = item.Stats.GetMateria(substat, itemList.ItemLevelCaps);
                             if (estat == 0 && mstat == 0)
                                 ImGui.Text("-");
                             else if (mstat == 0)

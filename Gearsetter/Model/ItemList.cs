@@ -16,6 +16,7 @@ internal sealed class ItemList
         { 24589, 70 },
         { 33648, 80 },
         { 41081, 90 },
+        { 44410, 60 },
     }.AsReadOnly();
 
     public required EClassJob ClassJob { get; init; }
@@ -184,7 +185,7 @@ internal sealed class ItemList
                     return true;
                 }
 
-                // if they're the same level, place the preferrd item last
+                // if they're the same level, place the preferred item last
                 if (levelSelf == other.Level)
                 {
                     priority = (byte)(levelSelf - 1);

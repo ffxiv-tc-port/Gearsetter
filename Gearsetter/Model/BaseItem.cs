@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using Gearsetter.GameData;
 using LLib.GameData;
 using LLib.Gear;
@@ -6,7 +7,7 @@ using Lumina.Excel.Sheets;
 
 namespace Gearsetter.Model;
 
-internal abstract record BaseItem(Item Item, bool Hq, EquipmentStats Stats)
+internal abstract record BaseItem(Item Item, bool Hq, EquipmentStats Stats, IReadOnlyList<uint>? SourceIds)
 {
     public Item Item { get; } = Item;
     public uint ItemId { get; } = Item.RowId;
@@ -20,6 +21,7 @@ internal abstract record BaseItem(Item Item, bool Hq, EquipmentStats Stats)
     public uint ItemUiCategory { get; } = Item.ItemUICategory.RowId;
     public abstract EClassJob ClassJob { get; init; }
     public EquipmentStats Stats { get; } = Stats;
+    public IReadOnlyList<uint> SourceIds { get; } = SourceIds ?? [];
 
     public int PrimaryStat { get; init; } = -1;
 

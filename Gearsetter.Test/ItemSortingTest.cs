@@ -41,7 +41,7 @@ public sealed class ItemSortingTest
             ClassJob = EClassJob.Marauder,
             EquipSlotCategory = EEquipSlotCategory.Ears,
             ItemUiCategory = 41,
-            Items = initialItemIds.Select(rowId => new EquipmentItem(items.GetRow(rowId), false, gearStatsCalculator.CalculateGearStats(items.GetRow(rowId), false, [])))
+            Items = initialItemIds.Select(rowId => new EquipmentItem(items.GetRow(rowId), false, gearStatsCalculator.CalculateGearStats(items.GetRow(rowId), false, []), null))
                 .Cast<BaseItem>()
                 .ToList(),
         };

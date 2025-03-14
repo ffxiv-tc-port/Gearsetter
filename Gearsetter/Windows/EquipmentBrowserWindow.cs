@@ -5,7 +5,10 @@ using System.Linq;
 using System.Numerics;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
+using Dalamud.Interface;
 using Dalamud.Interface.Colors;
+using Dalamud.Interface.Utility.Raii;
+using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using Gearsetter.GameData;
 using Gearsetter.Model;
@@ -13,15 +16,18 @@ using ImGuiNET;
 using LLib.GameData;
 using LLib.Gear;
 using LLib.ImGui;
+using Lumina.Excel.Sheets;
 
 namespace Gearsetter.Windows;
 
 internal sealed class EquipmentBrowserWindow : LWindow
 {
     private readonly GearsetterPlugin _plugin;
+    private readonly IDalamudPluginInterface _pluginInterface;
     private readonly GameDataHolder _dataHolder;
     private readonly IClientState _clientState;
     private readonly IChatGui _chatGui;
+    private readonly IDataManager _dataManager;
     private readonly string[] _classJobNames;
     private readonly EClassJob[] _classJobIds;
 
@@ -34,14 +40,20 @@ internal sealed class EquipmentBrowserWindow : LWindow
     private bool _onlyShowEquippableItems;
     private bool _hideNormalQualityItems = true;
 
-    public EquipmentBrowserWindow(GearsetterPlugin plugin, GameDataHolder dataHolder, IClientState clientState,
-        IChatGui chatGui)
+    public EquipmentBrowserWindow(GearsetterPlugin plugin,
+        IDalamudPluginInterface pluginInterface,
+        GameDataHolder dataHolder,
+        IClientState clientState,
+        IChatGui chatGui,
+        IDataManager dataManager)
         : base("Equipment Browser###GearsetterBrowser")
     {
         _plugin = plugin;
+        _pluginInterface = pluginInterface;
         _dataHolder = dataHolder;
         _clientState = clientState;
         _chatGui = chatGui;
+        _dataManager = dataManager;
         _classJobNames = dataHolder.ClassJobNames
             .Where(x => x.ClassJob.AsJob() == x.ClassJob)
             .Select(x => x.Name)
@@ -130,10 +142,11 @@ internal sealed class EquipmentBrowserWindow : LWindow
             var hoverColorPtr = ImGui.GetStyleColorVec4(ImGuiCol.HeaderHovered);
             var hoverColor = new Vector4(hoverColorPtr->X, hoverColorPtr->Y, hoverColorPtr->Z, 0.3f);
 
-            if (ImGui.BeginTable("ItemList", 2 + (includeDamage ? 1 : 0) + itemList.SubstatPriorities.Count,
+            if (ImGui.BeginTable("ItemList", 3 + (includeDamage ? 1 : 0) + itemList.SubstatPriorities.Count,
                     ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable))
             {
                 ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.None, 300);
+                ImGui.TableSetupColumn("###ItemSource", ImGuiTableColumnFlags.WidthFixed, 20);
                 ImGui.TableSetupColumn("Level", ImGuiTableColumnFlags.WidthFixed, 50);
                 if (includeDamage)
                     ImGui.TableSetupColumn("Damage", ImGuiTableColumnFlags.WidthFixed, 50);
@@ -147,90 +160,7 @@ internal sealed class EquipmentBrowserWindow : LWindow
                 foreach (var item in itemList.Items.DistinctBy(x => new
                              { x.ItemId, x.Hq, Stats = x.Stats.GetHashCode() }))
                 {
-                    if (item is not InventoryItem)
-                    {
-                        if (_onlyShowOwnedItems)
-                            continue;
-                    }
-
-                    if (item.Level > maxLevel)
-                        continue;
-
-                    if (_hideNormalQualityItems && item.CanBeHq && !item.Hq)
-                        continue;
-
-                    ImGui.TableNextRow();
-
-                    if (ImGui.TableNextColumn())
-                    {
-                        Vector4? color = item.Rarity switch
-                        {
-                            2 => ImGuiColors.ParsedGreen,
-                            3 => ImGuiColors.ParsedBlue,
-                            4 => ImGuiColors.ParsedPurple,
-                            7 => ImGuiColors.ParsedPink,
-                            _ => null,
-                        };
-
-                        string name = item.Name;
-                        if (item.Hq)
-                            name += $" {SeIconChar.HighQuality.ToIconString()}";
-                        if (item is InventoryItem { Stats.MateriaCount: > 0 } inventoryItem)
-                            name +=
-                                $"    {string.Join("", Enumerable.Repeat(SeIconChar.Circle.ToIconString(), inventoryItem.Stats.MateriaCount))}";
-
-                        if (color != null)
-                            ImGui.PushStyleColor(ImGuiCol.Text, color.Value);
-
-                        ImGui.Selectable(name, false, ImGuiSelectableFlags.SpanAllColumns);
-
-                        if (color != null)
-                            ImGui.PopStyleColor();
-
-                        if (ImGui.IsItemClicked())
-                        {
-                            try
-                            {
-                                _chatGui.Print(SeString.CreateItemLink(item.ItemId, item.Hq));
-                            }
-                            catch (Exception)
-                            {
-                                // doesn't matter, just nice-to-have
-                            }
-                        }
-                    }
-
-                    if (ImGui.TableNextColumn())
-                    {
-                        if (item.Level >= 50 && item.Level % 10 == 0)
-                            ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{item.Level} ({item.ItemLevel})"));
-                        else
-                            ImGui.Text(item.Level.ToString(CultureInfo.InvariantCulture));
-                    }
-
-                    if (includeDamage && ImGui.TableNextColumn())
-                        ImGui.Text(item.Damage.ToString(CultureInfo.CurrentCulture));
-
-                    foreach (EBaseParam substat in itemList.SubstatPriorities)
-                    {
-                        if (ImGui.TableNextColumn())
-                        {
-                            var estat = item.Stats.GetEquipment(substat);
-                            var mstat = item.Stats.GetMateria(substat);
-                            if (estat == 0 && mstat == 0)
-                                ImGui.Text("-");
-                            else if (mstat == 0)
-                                ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{estat}"));
-                            else
-                                ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{estat} +{mstat}"));
-
-                            if (item.Stats.IsOvercapped(substat))
-                            {
-                                ImGui.SameLine();
-                                ImGui.Text(SeIconChar.Debuff.ToIconString());
-                            }
-                        }
-                    }
+                    DrawItemRow(item, maxLevel, includeDamage, itemList);
                 }
 
                 ImGui.PopStyleColor();
@@ -240,6 +170,115 @@ internal sealed class EquipmentBrowserWindow : LWindow
         finally
         {
             itemList.ClearFromInventory();
+        }
+    }
+
+    private void DrawItemRow(BaseItem item, byte maxLevel, bool includeDamage, ItemList itemList)
+    {
+        if (item is not InventoryItem)
+        {
+            if (_onlyShowOwnedItems)
+                return;
+        }
+
+        if (item.Level > maxLevel)
+            return;
+
+        if (_hideNormalQualityItems && item is { CanBeHq: true, Hq: false })
+            return;
+
+        ImGui.TableNextRow();
+
+        if (ImGui.TableNextColumn())
+        {
+            Vector4? color = item.Rarity switch
+            {
+                2 => ImGuiColors.ParsedGreen,
+                3 => ImGuiColors.ParsedBlue,
+                4 => ImGuiColors.ParsedPurple,
+                7 => ImGuiColors.ParsedPink,
+                _ => null,
+            };
+
+            string name = item.Name;
+            if (item.Hq)
+                name += $" {SeIconChar.HighQuality.ToIconString()}";
+            if (item is InventoryItem { Stats.MateriaCount: > 0 } inventoryItem)
+                name +=
+                    $"    {string.Join("", Enumerable.Repeat(SeIconChar.Circle.ToIconString(), inventoryItem.Stats.MateriaCount))}";
+
+            if (color != null)
+                ImGui.PushStyleColor(ImGuiCol.Text, color.Value);
+
+            ImGui.Selectable(name, false, ImGuiSelectableFlags.SpanAllColumns);
+
+            if (color != null)
+                ImGui.PopStyleColor();
+
+            if (ImGui.IsItemClicked())
+            {
+                try
+                {
+                    _chatGui.Print(SeString.CreateItemLink(item.ItemId, item.Hq));
+                }
+                catch (Exception)
+                {
+                    // doesn't matter, just nice-to-have
+                }
+            }
+        }
+
+        if (ImGui.TableNextColumn())
+        {
+            if (item.SourceIds.Count > 0)
+            {
+                using (_ = _pluginInterface.UiBuilder.IconFontFixedWidthHandle.Push())
+                    ImGui.Text(FontAwesomeIcon.Suitcase.ToIconString());
+
+                if (ImGui.IsItemHovered())
+                {
+                    using (_ = ImRaii.Tooltip())
+                    {
+                        foreach (var source in item.SourceIds)
+                        {
+                            var sourceItem = _dataManager.GetExcelSheet<Item>().GetRow(source);
+                            ImGui.BulletText(sourceItem.Name.ExtractText());
+                        }
+                    }
+                }
+            }
+        }
+
+        if (ImGui.TableNextColumn())
+        {
+            if (item.Level >= 50 && item.Level % 10 == 0)
+                ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{item.Level} ({item.ItemLevel})"));
+            else
+                ImGui.Text(item.Level.ToString(CultureInfo.InvariantCulture));
+        }
+
+        if (includeDamage && ImGui.TableNextColumn())
+            ImGui.Text(item.Damage.ToString(CultureInfo.CurrentCulture));
+
+        foreach (EBaseParam substat in itemList.SubstatPriorities)
+        {
+            if (ImGui.TableNextColumn())
+            {
+                var estat = item.Stats.GetEquipment(substat);
+                var mstat = item.Stats.GetMateria(substat);
+                if (estat == 0 && mstat == 0)
+                    ImGui.Text("-");
+                else if (mstat == 0)
+                    ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{estat}"));
+                else
+                    ImGui.Text(string.Create(CultureInfo.InvariantCulture, $"{estat} +{mstat}"));
+
+                if (item.Stats.IsOvercapped(substat))
+                {
+                    ImGui.SameLine();
+                    ImGui.Text(SeIconChar.Debuff.ToIconString());
+                }
+            }
         }
     }
 

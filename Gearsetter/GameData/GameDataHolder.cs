@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using Dalamud.Game;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
@@ -15,7 +16,9 @@ internal sealed class GameDataHolder
 {
     private readonly Configuration _configuration;
     private readonly GearStatsCalculator _gearStatsCalculator;
-    private readonly Dictionary<uint, List<EClassJob>> _classJobCategories;
+    private readonly IReadOnlyDictionary<uint, List<uint>> _itemSourcesToItems;
+    private readonly IReadOnlyDictionary<uint,List<uint>> _itemsToItemSources;
+    private readonly IReadOnlyDictionary<uint, List<EClassJob>> _classJobCategories;
     private readonly IReadOnlyList<ItemList> _allItemLists;
 
     public GameDataHolder(IDataManager dataManager, Configuration configuration,
@@ -23,6 +26,13 @@ internal sealed class GameDataHolder
     {
         _configuration = configuration;
         _gearStatsCalculator = gearStatsCalculator;
+
+        _itemSourcesToItems = JsonSerializer.Deserialize<Dictionary<uint, List<uint>>>(
+            typeof(GameDataHolder).Assembly.GetManifestResourceStream("Gearsetter.LootSources")!)!;
+        _itemsToItemSources = _itemSourcesToItems.SelectMany(x => x.Value.Select(y => (SourceId: x.Key, ItemId: y)))
+            .GroupBy(x => x.ItemId)
+            .ToDictionary(x => x.Key, x => x.Select(y => y.SourceId).ToList());
+
         _classJobCategories = dataManager.GetExcelSheet<ClassJobCategory>()
             .ToDictionary(x => x.RowId, x =>
                 new Dictionary<EClassJob, bool>
@@ -207,12 +217,12 @@ internal sealed class GameDataHolder
     {
         var classJobCategories = _classJobCategories[item.ClassJobCategory.RowId];
         yield return (
-            new EquipmentItem(item, false, _gearStatsCalculator.CalculateGearStats(item, false, [])),
+            new EquipmentItem(item, false, _gearStatsCalculator.CalculateGearStats(item, false, []), _itemsToItemSources.GetValueOrDefault(item.RowId)),
             classJobCategories);
         if (item.CanBeHq)
         {
             yield return (
-                new EquipmentItem(item, true, _gearStatsCalculator.CalculateGearStats(item, true, [])),
+                new EquipmentItem(item, true, _gearStatsCalculator.CalculateGearStats(item, true, []), _itemsToItemSources.GetValueOrDefault(item.RowId)),
                 classJobCategories);
         }
     }

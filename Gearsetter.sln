@@ -8,6 +8,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LLib", "LLib\LLib.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gearsetter.IpcTest", "Gearsetter.IpcTest\Gearsetter.IpcTest.csproj", "{D5BFA879-0A33-4640-B75E-D92D8F23D6F1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gearsetter.DataSources.GoogleDrive", "Gearsetter.DataSources.GoogleDrive\Gearsetter.DataSources.GoogleDrive.csproj", "{A94A9853-E426-425C-AFE1-D4CE6F208A09}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gearsetter.DataProcessor", "Gearsetter.DataProcessor\Gearsetter.DataProcessor.csproj", "{7CC1FFAB-AE68-478F-AB8B-48E6222B3B21}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -30,5 +34,13 @@ Global
 		{D5BFA879-0A33-4640-B75E-D92D8F23D6F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D5BFA879-0A33-4640-B75E-D92D8F23D6F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D5BFA879-0A33-4640-B75E-D92D8F23D6F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A94A9853-E426-425C-AFE1-D4CE6F208A09}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A94A9853-E426-425C-AFE1-D4CE6F208A09}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A94A9853-E426-425C-AFE1-D4CE6F208A09}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A94A9853-E426-425C-AFE1-D4CE6F208A09}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7CC1FFAB-AE68-478F-AB8B-48E6222B3B21}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7CC1FFAB-AE68-478F-AB8B-48E6222B3B21}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7CC1FFAB-AE68-478F-AB8B-48E6222B3B21}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7CC1FFAB-AE68-478F-AB8B-48E6222B3B21}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

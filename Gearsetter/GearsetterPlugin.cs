@@ -66,7 +66,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         _configuration = configuration;
         _gearStatsCalculator = new GearStatsCalculator(dataManager);
         _gameDataHolder = new GameDataHolder(dataManager, _configuration, _gearStatsCalculator);
-        _equipmentBrowserWindow = new EquipmentBrowserWindow(this, _gameDataHolder, _clientState, _chatGui);
+        _equipmentBrowserWindow = new EquipmentBrowserWindow(this, _pluginInterface, _gameDataHolder, _clientState, _chatGui, _dataManager);
         _windowSystem.AddWindow(_equipmentBrowserWindow);
         _configWindow = new ConfigWindow(_pluginInterface, _configuration);
         _windowSystem.AddWindow(_configWindow);

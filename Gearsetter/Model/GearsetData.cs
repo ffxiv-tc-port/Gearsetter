@@ -37,7 +37,7 @@ internal sealed class GearsetData
 
         var item = dataManager.GetExcelSheet<Item>().GetRow(gearsetItem.ItemId % 1_000_000);
         bool hq = gearsetItem.ItemId > 1_000_000;
-        return new EquipmentItem(item, hq, gearStatsCalculator.CalculateGearStats(item, hq, []));
+        return new EquipmentItem(item, hq, gearStatsCalculator.CalculateGearStats(item, hq, []), null);
     }
 
     public byte Id { get; }

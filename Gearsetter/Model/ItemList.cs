@@ -78,7 +78,7 @@ internal sealed class ItemList
             {
                 if (includeWithoutMateria || inventoryStats.HasMateria())
                     Items.Add(
-                        new InventoryItem(basicItem.Item, basicItem.Hq, inventoryStats, basicItem.ClassJob)
+                        new InventoryItem(basicItem.Item, basicItem.Hq, inventoryStats, basicItem.ClassJob, basicItem.SourceIds)
                         {
                             PrimaryStat = basicItem.Stats.Get(PrimaryStat)
                         });

@@ -12,6 +12,12 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gearsetter.DataSources.Goog
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Gearsetter.DataProcessor", "Gearsetter.DataProcessor\Gearsetter.DataProcessor.csproj", "{7CC1FFAB-AE68-478F-AB8B-48E6222B3B21}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{2DD4441E-165E-457B-AFF1-ECADF1EA8A38}"
+	ProjectSection(SolutionItems) = preProject
+		global.json = global.json
+		.woodpecker\build.yaml = .woodpecker\build.yaml
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU

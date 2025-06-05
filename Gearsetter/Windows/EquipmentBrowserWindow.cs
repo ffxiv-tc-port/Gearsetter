@@ -85,7 +85,7 @@ internal sealed class EquipmentBrowserWindow : LWindow
         return _clientState.IsLoggedIn;
     }
 
-    public override unsafe void Draw()
+    public override unsafe void DrawContent()
     {
         int currentClassJob = Array.IndexOf(_classJobIds, _selectedClassJob);
         if (currentClassJob == -1)

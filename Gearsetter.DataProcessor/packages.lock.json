@@ -36,6 +36,11 @@
         "resolved": "9.0.2",
         "contentHash": "4TY2Yokh5Xp8XHFhsY9y84yokS7B0rhkaZCXuRiKppIiKwPVH4lVSFD9EEFzRpXdBM5ZeZXD43tc2vB6njEwwQ=="
       },
+      "JetBrains.Annotations": {
+        "type": "Transitive",
+        "resolved": "2024.3.0",
+        "contentHash": "ox5pkeLQXjvJdyAB4b2sBYAlqZGLh3PjSnP1bQNVx72ONuTJ9+34/+Rq91Fc0dG29XG9RgZur9+NcP4riihTug=="
+      },
       "Microsoft.Build.Tasks.Git": {
         "type": "Transitive",
         "resolved": "8.0.0",
@@ -49,7 +54,8 @@
       "llib": {
         "type": "Project",
         "dependencies": {
-          "DalamudPackager": "[12.0.0, )"
+          "DalamudPackager": "[12.0.0, )",
+          "JetBrains.Annotations": "[2024.3.0, )"
         }
       }
     }

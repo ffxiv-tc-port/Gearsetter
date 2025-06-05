@@ -16,7 +16,7 @@ internal sealed class ConfigWindow : LWindow
         _configuration = configuration;
     }
 
-    public override void Draw()
+    public override void DrawContent()
     {
         bool showRecommendationsWhenEnteringGcArea = _configuration.ShowRecommendationsWhenEnteringGcArea;
         if (ImGui.Checkbox("Show recommendations when entering Grand Company area",

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text.Json;
 using Dalamud.Game;
@@ -16,9 +17,8 @@ internal sealed class GameDataHolder
 {
     private readonly Configuration _configuration;
     private readonly GearStatsCalculator _gearStatsCalculator;
-    private readonly IReadOnlyDictionary<uint, List<uint>> _itemSourcesToItems;
-    private readonly IReadOnlyDictionary<uint,List<uint>> _itemsToItemSources;
-    private readonly IReadOnlyDictionary<uint, List<EClassJob>> _classJobCategories;
+    private readonly ReadOnlyDictionary<uint,List<uint>> _itemsToItemSources;
+    private readonly ReadOnlyDictionary<uint, List<EClassJob>> _classJobCategories;
     private readonly IReadOnlyList<ItemList> _allItemLists;
 
     public GameDataHolder(IDataManager dataManager, Configuration configuration,
@@ -27,11 +27,12 @@ internal sealed class GameDataHolder
         _configuration = configuration;
         _gearStatsCalculator = gearStatsCalculator;
 
-        _itemSourcesToItems = JsonSerializer.Deserialize<Dictionary<uint, List<uint>>>(
+        var itemSourcesToItems = JsonSerializer.Deserialize<Dictionary<uint, List<uint>>>(
             typeof(GameDataHolder).Assembly.GetManifestResourceStream("Gearsetter.LootSources")!)!;
-        _itemsToItemSources = _itemSourcesToItems.SelectMany(x => x.Value.Select(y => (SourceId: x.Key, ItemId: y)))
+        _itemsToItemSources = itemSourcesToItems.SelectMany(x => x.Value.Select(y => (SourceId: x.Key, ItemId: y)))
             .GroupBy(x => x.ItemId)
-            .ToDictionary(x => x.Key, x => x.Select(y => y.SourceId).ToList());
+            .ToDictionary(x => x.Key, x => x.Select(y => y.SourceId).ToList())
+            .AsReadOnly();
 
         _classJobCategories = dataManager.GetExcelSheet<ClassJobCategory>()
             .ToDictionary(x => x.RowId, x =>
@@ -83,7 +84,8 @@ internal sealed class GameDataHolder
                     }
                     .Where(y => y.Value)
                     .Select(y => y.Key)
-                    .ToList());
+                    .ToList())
+            .AsReadOnly();
         ClassJobNames = dataManager.GetExcelSheet<ClassJob>()
             .Where(x => x.RowId > 0 && Enum.IsDefined(typeof(EClassJob), x.RowId))
             .OrderBy(x => x.UIPriority)

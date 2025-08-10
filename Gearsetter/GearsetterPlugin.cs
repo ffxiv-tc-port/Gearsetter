@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
@@ -40,7 +41,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private readonly GameDataHolder _gameDataHolder;
     private readonly EquipmentBrowserWindow _equipmentBrowserWindow;
     private readonly ConfigWindow _configWindow;
-    private readonly IReadOnlyDictionary<byte, DalamudLinkPayload> _linkPayloads;
+    private readonly ReadOnlyDictionary<byte, DalamudLinkPayload> _linkPayloads;
     private readonly Dictionary<EClassJob, byte> _classJobToArrayIndex;
 
     public GearsetterPlugin(IDalamudPluginInterface pluginInterface, ICommandManager commandManager, IChatGui chatGui,
@@ -80,7 +81,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             HelpMessage = "Toggle the equipment browser window"
         });
         _linkPayloads = Enumerable.Range(0, 100)
-            .ToDictionary(x => (byte)x, x => _pluginInterface.AddChatLinkHandler((byte)x, ChangeGearset)).AsReadOnly();
+            .ToDictionary(x => (byte)x, x => _chatGui.AddChatLinkHandler((byte)x, ChangeGearset)).AsReadOnly();
         _clientState.TerritoryChanged += TerritoryChanged;
         _pluginInterface.UiBuilder.Draw += _windowSystem.Draw;
         _pluginInterface.UiBuilder.OpenMainUi += _equipmentBrowserWindow.Toggle;
@@ -432,7 +433,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         _pluginInterface.UiBuilder.OpenMainUi -= _equipmentBrowserWindow.Toggle;
         _pluginInterface.UiBuilder.Draw -= _windowSystem.Draw;
         _clientState.TerritoryChanged -= TerritoryChanged;
-        _pluginInterface.RemoveChatLinkHandler();
+        _chatGui.RemoveChatLinkHandler();
         _commandManager.RemoveHandler("/gbrowser");
         _commandManager.RemoveHandler("/gup");
         _gearsetterIpc.Dispose();

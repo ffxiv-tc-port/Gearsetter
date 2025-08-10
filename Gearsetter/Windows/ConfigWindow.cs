@@ -1,5 +1,5 @@
-﻿using Dalamud.Plugin;
-using ImGuiNET;
+﻿using Dalamud.Bindings.ImGui;
+using Dalamud.Plugin;
 using LLib.ImGui;
 
 namespace Gearsetter.Windows;

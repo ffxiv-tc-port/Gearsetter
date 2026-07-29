@@ -1,5 +1,8 @@
 name: Build Check
 
+# 注意：push 底下只給了 tags-ignore，依 GitHub 的篩選規則這代表「只在推 tag 時觸發」，
+# 推分支並不會觸發（艦隊裡所有 repo 的 build-check 歷史執行次數都是 0，已實測確認）。
+# 這份設定與艦隊其他 44 個 repo 保持一致，要實際跑編譯檢查請用 workflow_dispatch 手動觸發。
 on:
   push:
     tags-ignore:

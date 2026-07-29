@@ -48,6 +48,11 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         IDataManager dataManager, IPluginLog pluginLog, IClientState clientState)
     {
         ArgumentNullException.ThrowIfNull(dataManager);
+        ArgumentNullException.ThrowIfNull(pluginInterface);
+
+        // Must run before any window is constructed or command registered, as those
+        // resolve their .Loc() text once at construction time.
+        Localization.Init(pluginInterface.AssemblyLocation.DirectoryName);
 
         _pluginInterface = pluginInterface;
         _commandManager = commandManager;
@@ -74,11 +79,11 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
         _commandManager.AddHandler("/gup", new CommandInfo(ShowUpgrades)
         {
-            HelpMessage = "Show possible gear upgrades for all gearsets"
+            HelpMessage = "Show possible gear upgrades for all gearsets".Loc()
         });
         _commandManager.AddHandler("/gbrowser", new CommandInfo(ToggleEquipmentBrowser)
         {
-            HelpMessage = "Toggle the equipment browser window"
+            HelpMessage = "Toggle the equipment browser window".Loc()
         });
         _linkPayloads = Enumerable.Range(0, 100)
             .ToDictionary(x => (byte)x, x => _chatGui.AddChatLinkHandler((byte)x, ChangeGearset)).AsReadOnly();
@@ -138,7 +143,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
         bool onlyCurrentJob = level != null;
         if (onlyCurrentJob)
-            _chatGui.Print("Checking only gearsets for your current class/job...");
+            _chatGui.Print("Checking only gearsets for your current class/job...".Loc());
 
         List<GearsetData> gearsets = new List<GearsetData>();
         for (int i = 0; i < 100; ++i)
@@ -165,7 +170,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
                 anyUpgrade |= HandleGearset(gearset, inventoryItems, level);
 
             if (!anyUpgrade)
-                _chatGui.Print("All your gearsets are OK.");
+                _chatGui.Print("All your gearsets are OK.".Loc());
 
             _pluginLog.Information($"Evaluating gearsets took {DateTime.Now - start}");
         });
@@ -202,21 +207,28 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
         List<List<RecommendedItemChange>> upgrades = new()
         {
-            Handle("Main Hand", [(gearset.MainHand, RaptureGearsetModule.GearsetItemIndex.MainHand)],
+            Handle("Main Hand".Loc(), [(gearset.MainHand, RaptureGearsetModule.GearsetItemIndex.MainHand)],
                 EEquipSlotCategory.None),
             HandleOffHand(gearset, inventoryItems, level),
 
-            Handle("Head", [(gearset.Head, RaptureGearsetModule.GearsetItemIndex.Head)], EEquipSlotCategory.Head),
-            Handle("Body", [(gearset.Body, RaptureGearsetModule.GearsetItemIndex.Body)], EEquipSlotCategory.Body),
-            Handle("Hands", [(gearset.Hands, RaptureGearsetModule.GearsetItemIndex.Hands)], EEquipSlotCategory.Hands),
-            Handle("Legs", [(gearset.Legs, RaptureGearsetModule.GearsetItemIndex.Legs)], EEquipSlotCategory.Legs),
-            Handle("Feet", [(gearset.Feet, RaptureGearsetModule.GearsetItemIndex.Feet)], EEquipSlotCategory.Feet),
+            Handle("Head".Loc(), [(gearset.Head, RaptureGearsetModule.GearsetItemIndex.Head)],
+                EEquipSlotCategory.Head),
+            Handle("Body".Loc(), [(gearset.Body, RaptureGearsetModule.GearsetItemIndex.Body)],
+                EEquipSlotCategory.Body),
+            Handle("Hands".Loc(), [(gearset.Hands, RaptureGearsetModule.GearsetItemIndex.Hands)],
+                EEquipSlotCategory.Hands),
+            Handle("Legs".Loc(), [(gearset.Legs, RaptureGearsetModule.GearsetItemIndex.Legs)],
+                EEquipSlotCategory.Legs),
+            Handle("Feet".Loc(), [(gearset.Feet, RaptureGearsetModule.GearsetItemIndex.Feet)],
+                EEquipSlotCategory.Feet),
 
-            Handle("Ears", [(gearset.Ears, RaptureGearsetModule.GearsetItemIndex.Ears)], EEquipSlotCategory.Ears),
-            Handle("Neck", [(gearset.Neck, RaptureGearsetModule.GearsetItemIndex.Neck)], EEquipSlotCategory.Neck),
-            Handle("Wrists", [(gearset.Wrists, RaptureGearsetModule.GearsetItemIndex.Wrists)],
+            Handle("Ears".Loc(), [(gearset.Ears, RaptureGearsetModule.GearsetItemIndex.Ears)],
+                EEquipSlotCategory.Ears),
+            Handle("Neck".Loc(), [(gearset.Neck, RaptureGearsetModule.GearsetItemIndex.Neck)],
+                EEquipSlotCategory.Neck),
+            Handle("Wrists".Loc(), [(gearset.Wrists, RaptureGearsetModule.GearsetItemIndex.Wrists)],
                 EEquipSlotCategory.Wrists),
-            Handle("Rings",
+            Handle("Rings".Loc(),
                 [
                     (gearset.RingLeft, RaptureGearsetModule.GearsetItemIndex.RingLeft),
                     (gearset.RingRight, RaptureGearsetModule.GearsetItemIndex.RingRight)
@@ -237,14 +249,14 @@ public sealed class GearsetterPlugin : IDalamudPlugin
 
         _chatGui.Print(
             new SeStringBuilder()
-                .Append("Gearset ")
+                .Append("Gearset".Loc() + " ")
                 .AddUiForeground(1)
                 .Add(_linkPayloads[gearset.Id])
                 .Append($"#{gearset.Id + 1}: ")
                 .Append(gearset.Name)
                 .Add(RawPayload.LinkTerminator)
                 .AddUiForegroundOff()
-                .AddText(level != null ? $" at {level}" : "")
+                .AddText(level != null ? " " + "at ??".Loc(level) : "")
                 .Build());
 
         foreach (var upgrade in upgrades)
@@ -353,7 +365,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         if (equipSlotCategory != EEquipSlotCategory.OneHandedMainHand)
             return [];
 
-        return HandleGearsetItem("Off Hand", gearset,
+        return HandleGearsetItem("Off Hand".Loc(), gearset,
             [(gearset.OffHand, RaptureGearsetModule.GearsetItemIndex.OffHand)],
             inventoryItems,
             EEquipSlotCategory.Shield, level);

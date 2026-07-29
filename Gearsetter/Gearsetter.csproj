@@ -27,6 +27,12 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Content Include="LanguageChineseTraditional.ini">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </Content>
+    </ItemGroup>
+
+    <ItemGroup>
       <None Remove="lootSources.json" />
       <EmbeddedResource Include="lootSources.json">
           <LogicalName>Gearsetter.LootSources</LogicalName>

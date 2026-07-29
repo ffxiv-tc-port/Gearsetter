@@ -1,11 +1,26 @@
 <Project Sdk="Dalamud.NET.Sdk/13.0.0">
     <PropertyGroup>
-        <Version>4.0</Version>
         <OutputPath>dist</OutputPath>
     </PropertyGroup>
 
+    <PropertyGroup>
+        <BuildNumberFile>$(MSBuildProjectDirectory)\BuildNumber.txt</BuildNumberFile>
+        <_PreviousBuildNumber Condition="Exists('$(BuildNumberFile)')">$([System.IO.File]::ReadAllText('$(BuildNumberFile)').Trim())</_PreviousBuildNumber>
+        <_PreviousBuildNumber Condition="'$(_PreviousBuildNumber)' == ''">0</_PreviousBuildNumber>
+        <BuildNumber>$([MSBuild]::Add($(_PreviousBuildNumber), 1))</BuildNumber>
+        <VersionPrefix>7.20.0</VersionPrefix>
+        <Version>$(VersionPrefix).$(BuildNumber)</Version>
+        <AssemblyVersion>$(Version)</AssemblyVersion>
+        <FileVersion>$(Version)</FileVersion>
+    </PropertyGroup>
+    <Target Name="PersistBuildNumber" AfterTargets="Build">
+        <WriteLinesToFile File="$(BuildNumberFile)" Lines="$(BuildNumber)" Overwrite="true" />
+    </Target>
+
+    <!-- RenameZip.targets is deliberately NOT imported: it renames latest.zip to
+         Gearsetter-<version>.zip, which breaks the fleet's release.yml (it looks for
+         latest.zip and republishes it as Gearsetter.zip). -->
     <Import Project="..\LLib\LLib.targets"/>
-    <Import Project="..\LLib\RenameZip.targets"/>
 
     <ItemGroup>
         <ProjectReference Include="..\LLib\LLib.csproj"/>

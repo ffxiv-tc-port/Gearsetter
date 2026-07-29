@@ -45,7 +45,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private readonly Dictionary<EClassJob, byte> _classJobToArrayIndex;
 
     public GearsetterPlugin(IDalamudPluginInterface pluginInterface, ICommandManager commandManager, IChatGui chatGui,
-        IDataManager dataManager, IPluginLog pluginLog, IClientState clientState)
+        IDataManager dataManager, IPluginLog pluginLog, IClientState clientState, IGameInventory gameInventory)
     {
         ArgumentNullException.ThrowIfNull(dataManager);
         ArgumentNullException.ThrowIfNull(pluginInterface);
@@ -72,7 +72,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         _configuration = configuration;
         _gearStatsCalculator = new GearStatsCalculator(dataManager);
         _gameDataHolder = new GameDataHolder(dataManager, _configuration, _gearStatsCalculator);
-        _equipmentBrowserWindow = new EquipmentBrowserWindow(this, _pluginInterface, _gameDataHolder, _clientState, _chatGui, _dataManager);
+        _equipmentBrowserWindow = new EquipmentBrowserWindow(this, _pluginInterface, _gameDataHolder, _clientState, _chatGui, _dataManager, gameInventory);
         _windowSystem.AddWindow(_equipmentBrowserWindow);
         _configWindow = new ConfigWindow(_pluginInterface, _configuration);
         _windowSystem.AddWindow(_configWindow);
@@ -448,6 +448,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         _chatGui.RemoveChatLinkHandler();
         _commandManager.RemoveHandler("/gbrowser");
         _commandManager.RemoveHandler("/gup");
+        _equipmentBrowserWindow.Dispose();
         _gearsetterIpc.Dispose();
     }
 }

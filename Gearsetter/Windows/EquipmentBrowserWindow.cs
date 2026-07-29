@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.Inventory.InventoryEventArgTypes;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface;
@@ -20,14 +21,17 @@ using Lumina.Excel.Sheets;
 
 namespace Gearsetter.Windows;
 
-internal sealed class EquipmentBrowserWindow : LWindow
+internal sealed class EquipmentBrowserWindow : LWindow, IDisposable
 {
+    private static readonly TimeSpan MinInventoryRefreshInterval = TimeSpan.FromSeconds(2);
+
     private readonly GearsetterPlugin _plugin;
     private readonly IDalamudPluginInterface _pluginInterface;
     private readonly GameDataHolder _dataHolder;
     private readonly IClientState _clientState;
     private readonly IChatGui _chatGui;
     private readonly IDataManager _dataManager;
+    private readonly IGameInventory _gameInventory;
     private readonly string[] _classJobNames;
     private readonly EClassJob[] _classJobIds;
 
@@ -40,12 +44,22 @@ internal sealed class EquipmentBrowserWindow : LWindow
     private bool _onlyShowEquippableItems;
     private bool _hideNormalQualityItems = true;
 
+    // Cache for GetAllInventoryItems(): that call re-scans all 4 bags + the full
+    // armoury chest and recalculates materia stats per item, which used to run on
+    // every single ImGui frame while this window was open. Recompute only when the
+    // inventory actually changed (IGameInventory.InventoryChanged) or, as a safety
+    // net in case that event is ever missed, at most once every 2 seconds.
+    private Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> _cachedInventoryItems = new();
+    private bool _inventoryDirty = true;
+    private DateTime _lastInventoryRefresh = DateTime.MinValue;
+
     public EquipmentBrowserWindow(GearsetterPlugin plugin,
         IDalamudPluginInterface pluginInterface,
         GameDataHolder dataHolder,
         IClientState clientState,
         IChatGui chatGui,
-        IDataManager dataManager)
+        IDataManager dataManager,
+        IGameInventory gameInventory)
         : base("Equipment Browser".Loc() + "###GearsetterBrowser")
     {
         _plugin = plugin;
@@ -54,6 +68,8 @@ internal sealed class EquipmentBrowserWindow : LWindow
         _clientState = clientState;
         _chatGui = chatGui;
         _dataManager = dataManager;
+        _gameInventory = gameInventory;
+        _gameInventory.InventoryChanged += OnInventoryChanged;
         _classJobNames = dataHolder.ClassJobNames
             .Where(x => x.ClassJob.AsJob() == x.ClassJob)
             .Select(x => x.Name)
@@ -72,12 +88,32 @@ internal sealed class EquipmentBrowserWindow : LWindow
         };
     }
 
+    public void Dispose()
+    {
+        _gameInventory.InventoryChanged -= OnInventoryChanged;
+    }
+
+    private void OnInventoryChanged(IReadOnlyCollection<InventoryEventArgs> events) => _inventoryDirty = true;
+
+    private Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> GetCachedInventoryItems()
+    {
+        if (_inventoryDirty || DateTime.UtcNow - _lastInventoryRefresh > MinInventoryRefreshInterval)
+        {
+            _cachedInventoryItems = _plugin.GetAllInventoryItems();
+            _inventoryDirty = false;
+            _lastInventoryRefresh = DateTime.UtcNow;
+        }
+
+        return _cachedInventoryItems;
+    }
+
     public override void OnOpen()
     {
         if (_clientState.LocalPlayer != null)
             _selectedClassJob = ((EClassJob)_clientState.LocalPlayer.ClassJob.RowId).AsJob();
 
         UpdateEquipmentCategories();
+        _inventoryDirty = true;
     }
 
     public override bool DrawConditions()
@@ -124,7 +160,7 @@ internal sealed class EquipmentBrowserWindow : LWindow
         ImGui.SameLine();
         ImGui.Checkbox("Hide normal quality items".Loc(), ref _hideNormalQualityItems);
 
-        Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> ownedItems = _plugin.GetAllInventoryItems();
+        Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> ownedItems = GetCachedInventoryItems();
         try
         {
             itemList.ApplyFromInventory(ownedItems, _onlyShowOwnedItems);

@@ -33,9 +33,9 @@ jobs:
         shell: pwsh
         run: |
           $path = './Gearsetter/dist/Gearsetter/Gearsetter.json'
-          $json = Get-Content -Raw $path | ConvertFrom-Json
+          $json = Get-Content -Raw -Encoding utf8 $path | ConvertFrom-Json
           $json.AssemblyVersion = "${{ env.VER }}"
-          $json | ConvertTo-Json | Set-Content -Path $path
+          $json | ConvertTo-Json -Depth 100 | Set-Content -Path $path -Encoding utf8
       - name: Rename artifact to Gearsetter.zip
         shell: pwsh
         run: |

@@ -372,7 +372,15 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     }
 
     private unsafe void ChangeGearset(uint commandId, SeString seString)
-        => RaptureGearsetModule.Instance()->EquipGearset((byte)commandId);
+    {
+        // RaptureGearsetModule.Instance() 走 UIModule，UI 尚未建立時回 null（CS 手寫實作）。
+        // 取不到就不換裝——聊天連結點下去沒反應，而不是崩潰。
+        RaptureGearsetModule* gearsetModule = RaptureGearsetModule.Instance();
+        if (gearsetModule == null)
+            return;
+
+        gearsetModule->EquipGearset((byte)commandId);
+    }
 
 
     private unsafe RecommendedItemChange ToItemRecommendation(BaseItem baseItem,

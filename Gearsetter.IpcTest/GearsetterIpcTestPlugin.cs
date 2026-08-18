@@ -25,7 +25,15 @@ public class GearsetterIpcTestPlugin : IDalamudPlugin
 
     private unsafe void ProcessCommand(string command, string arguments)
     {
-        int currentGearsetIndex = RaptureGearsetModule.Instance()->CurrentGearsetIndex;
+        // RaptureGearsetModule.Instance() 走 UIModule，UI 尚未建立時回 null（CS 手寫實作）。
+        RaptureGearsetModule* gearsetModule = RaptureGearsetModule.Instance();
+        if (gearsetModule == null)
+        {
+            _chatGui.Print("Gearset module is not available.");
+            return;
+        }
+
+        int currentGearsetIndex = gearsetModule->CurrentGearsetIndex;
         var recommendations = _pluginInterface
             .GetIpcSubscriber<byte, List<(uint ItemId, InventoryType? SourceInventory, byte? SourceInventorySlot, RaptureGearsetModule.GearsetItemIndex TargetSlot)>>(
                 "Gearsetter.GetRecommendationsForGearset").InvokeFunc((byte)currentGearsetIndex);

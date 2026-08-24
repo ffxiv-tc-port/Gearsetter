@@ -32,6 +32,9 @@ internal sealed class EquipmentBrowserWindow : LWindow, IDisposable
     private readonly IChatGui _chatGui;
     private readonly IDataManager _dataManager;
     private readonly IGameInventory _gameInventory;
+
+    // API13 把 IClientState.LocalPlayer 標為過時，替代品是 IObjectTable.LocalPlayer（純轉發）。
+    private readonly IObjectTable _objectTable;
     private readonly string[] _classJobNames;
     private readonly EClassJob[] _classJobIds;
 
@@ -59,7 +62,8 @@ internal sealed class EquipmentBrowserWindow : LWindow, IDisposable
         IClientState clientState,
         IChatGui chatGui,
         IDataManager dataManager,
-        IGameInventory gameInventory)
+        IGameInventory gameInventory,
+        IObjectTable objectTable)
         : base("Equipment Browser".Loc() + "###GearsetterBrowser")
     {
         _plugin = plugin;
@@ -69,6 +73,7 @@ internal sealed class EquipmentBrowserWindow : LWindow, IDisposable
         _chatGui = chatGui;
         _dataManager = dataManager;
         _gameInventory = gameInventory;
+        _objectTable = objectTable;
         _gameInventory.InventoryChanged += OnInventoryChanged;
         _classJobNames = dataHolder.ClassJobNames
             .Where(x => x.ClassJob.AsJob() == x.ClassJob)
@@ -109,8 +114,8 @@ internal sealed class EquipmentBrowserWindow : LWindow, IDisposable
 
     public override void OnOpen()
     {
-        if (_clientState.LocalPlayer != null)
-            _selectedClassJob = ((EClassJob)_clientState.LocalPlayer.ClassJob.RowId).AsJob();
+        if (_objectTable.LocalPlayer != null)
+            _selectedClassJob = ((EClassJob)_objectTable.LocalPlayer.ClassJob.RowId).AsJob();
 
         UpdateEquipmentCategories();
         _inventoryDirty = true;

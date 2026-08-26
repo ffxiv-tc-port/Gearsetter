@@ -35,6 +35,11 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private readonly IDataManager _dataManager;
     private readonly IPluginLog _pluginLog;
     private readonly IClientState _clientState;
+
+    // API13 把 IClientState.LocalPlayer 標為過時，替代品是 IObjectTable.LocalPlayer。
+    // Dalamud 端 ClientState.LocalPlayer 本身就是 => this.objectTable.LocalPlayer 的純轉發，
+    // 所以改用這個取值不會改變行為。
+    private readonly IObjectTable _objectTable;
     private readonly GearsetterIpc _gearsetterIpc;
     private readonly Configuration _configuration;
     private readonly GearStatsCalculator _gearStatsCalculator;
@@ -45,7 +50,8 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     private readonly Dictionary<EClassJob, byte> _classJobToArrayIndex;
 
     public GearsetterPlugin(IDalamudPluginInterface pluginInterface, ICommandManager commandManager, IChatGui chatGui,
-        IDataManager dataManager, IPluginLog pluginLog, IClientState clientState)
+        IDataManager dataManager, IPluginLog pluginLog, IClientState clientState, IGameInventory gameInventory,
+        IObjectTable objectTable)
     {
         ArgumentNullException.ThrowIfNull(dataManager);
         ArgumentNullException.ThrowIfNull(pluginInterface);
@@ -60,6 +66,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         _dataManager = dataManager;
         _pluginLog = pluginLog;
         _clientState = clientState;
+        _objectTable = objectTable;
         _gearsetterIpc = new GearsetterIpc(this, _pluginInterface, _pluginLog);
 
         Configuration? configuration = (Configuration?)_pluginInterface.GetPluginConfig();
@@ -72,7 +79,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         _configuration = configuration;
         _gearStatsCalculator = new GearStatsCalculator(dataManager);
         _gameDataHolder = new GameDataHolder(dataManager, _configuration, _gearStatsCalculator);
-        _equipmentBrowserWindow = new EquipmentBrowserWindow(this, _pluginInterface, _gameDataHolder, _clientState, _chatGui, _dataManager);
+        _equipmentBrowserWindow = new EquipmentBrowserWindow(this, _pluginInterface, _gameDataHolder, _clientState, _chatGui, _dataManager, gameInventory, _objectTable);
         _windowSystem.AddWindow(_equipmentBrowserWindow);
         _configWindow = new ConfigWindow(_pluginInterface, _configuration);
         _windowSystem.AddWindow(_configWindow);
@@ -151,7 +158,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
             var gearset = gearsetModule->GetGearset(i);
             if (gearset != null && gearset->Flags.HasFlag(RaptureGearsetModule.GearsetFlag.Exists))
             {
-                if (onlyCurrentJob && gearset->ClassJob != _clientState.LocalPlayer!.ClassJob.RowId)
+                if (onlyCurrentJob && gearset->ClassJob != _objectTable.LocalPlayer!.ClassJob.RowId)
                     continue;
 
                 var gearsetData = PrepareGearset(gearset);
@@ -372,7 +379,15 @@ public sealed class GearsetterPlugin : IDalamudPlugin
     }
 
     private unsafe void ChangeGearset(uint commandId, SeString seString)
-        => RaptureGearsetModule.Instance()->EquipGearset((byte)commandId);
+    {
+        // RaptureGearsetModule.Instance() 走 UIModule，UI 尚未建立時回 null（CS 手寫實作）。
+        // 取不到就不換裝——聊天連結點下去沒反應，而不是崩潰。
+        RaptureGearsetModule* gearsetModule = RaptureGearsetModule.Instance();
+        if (gearsetModule == null)
+            return;
+
+        gearsetModule->EquipGearset((byte)commandId);
+    }
 
 
     private unsafe RecommendedItemChange ToItemRecommendation(BaseItem baseItem,
@@ -448,6 +463,7 @@ public sealed class GearsetterPlugin : IDalamudPlugin
         _chatGui.RemoveChatLinkHandler();
         _commandManager.RemoveHandler("/gbrowser");
         _commandManager.RemoveHandler("/gup");
+        _equipmentBrowserWindow.Dispose();
         _gearsetterIpc.Dispose();
     }
 }

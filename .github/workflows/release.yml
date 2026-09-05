@@ -39,8 +39,11 @@ jobs:
       - name: Rename artifact to Gearsetter.zip
         shell: pwsh
         run: |
-          $zip = Get-ChildItem -Path . -Recurse -Filter latest.zip | Select-Object -First 1
-          Copy-Item $zip.FullName -Destination "Gearsetter.zip"
+          # 直接指名輸出路徑,不要用 -Recurse 找 latest.zip:LLib 是 Gearsetter 的
+          # ProjectReference,建 Gearsetter.csproj 時它也會產出自己的 latest.zip,
+          # 萬用字元搜尋的順序不保證,撿錯一個就會把 LLib 當成 Gearsetter 出貨
+          # (而 manifest 那步是寫死路徑的 ⇒ zip 與 json 來自不同外掛,零徵兆)。
+          Copy-Item './Gearsetter/dist/Gearsetter/latest.zip' -Destination 'Gearsetter.zip'
       - name: Release
         uses: softprops/action-gh-release@v2
         with:

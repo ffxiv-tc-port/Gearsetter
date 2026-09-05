@@ -34,8 +34,12 @@ public class GearsetterIpcTestPlugin : IDalamudPlugin
         }
 
         int currentGearsetIndex = gearsetModule->CurrentGearsetIndex;
+        // 🔴 元組第 3 元在提供端是 int?（Gearsetter/External/GearsetterIpc.cs 與
+        //    Model/RecommendedItemChange.SourceInventorySlot 都是 int?）。這裡原本寫成 byte?，
+        //    自 2024-08-17 引入 IPC 的第一顆 commit 起就對不上——只是格位索引一直沒超過 255
+        //    所以 Newtonsoft 的 JSON 來回轉換剛好都成功。超過 255 就會擲 IpcTypeMismatchError。
         var recommendations = _pluginInterface
-            .GetIpcSubscriber<byte, List<(uint ItemId, InventoryType? SourceInventory, byte? SourceInventorySlot, RaptureGearsetModule.GearsetItemIndex TargetSlot)>>(
+            .GetIpcSubscriber<byte, List<(uint ItemId, InventoryType? SourceInventory, int? SourceInventorySlot, RaptureGearsetModule.GearsetItemIndex TargetSlot)>>(
                 "Gearsetter.GetRecommendationsForGearset").InvokeFunc((byte)currentGearsetIndex);
         if (recommendations.Count == 0)
             _chatGui.Print($"No recommendations for gearset #{currentGearsetIndex}.");

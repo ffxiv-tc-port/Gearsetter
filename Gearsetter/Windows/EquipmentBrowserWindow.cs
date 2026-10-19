@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Numerics;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.Inventory.InventoryEventArgTypes;
 using Dalamud.Game.Text;
 using Dalamud.Game.Text.SeStringHandling;
 using Dalamud.Interface;
@@ -20,14 +21,19 @@ using Lumina.Excel.Sheets;
 
 namespace Gearsetter.Windows;
 
-internal sealed class EquipmentBrowserWindow : LWindow
+internal sealed class EquipmentBrowserWindow : LWindow, IDisposable
 {
+    private static readonly TimeSpan MinInventoryRefreshInterval = TimeSpan.FromSeconds(2);
+
     private readonly GearsetterPlugin _plugin;
     private readonly IDalamudPluginInterface _pluginInterface;
     private readonly GameDataHolder _dataHolder;
     private readonly IClientState _clientState;
     private readonly IChatGui _chatGui;
     private readonly IDataManager _dataManager;
+    private readonly IGameInventory _gameInventory;
+
+    private readonly IObjectTable _objectTable;
     private readonly string[] _classJobNames;
     private readonly EClassJob[] _classJobIds;
 
@@ -40,13 +46,24 @@ internal sealed class EquipmentBrowserWindow : LWindow
     private bool _onlyShowEquippableItems;
     private bool _hideNormalQualityItems = true;
 
+    // Cache for GetAllInventoryItems(): that call re-scans all 4 bags + the full
+    // armoury chest and recalculates materia stats per item, which used to run on
+    // every single ImGui frame while this window was open. Recompute only when the
+    // inventory actually changed (IGameInventory.InventoryChanged) or, as a safety
+    // net in case that event is ever missed, at most once every 2 seconds.
+    private Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> _cachedInventoryItems = new();
+    private bool _inventoryDirty = true;
+    private DateTime _lastInventoryRefresh = DateTime.MinValue;
+
     public EquipmentBrowserWindow(GearsetterPlugin plugin,
         IDalamudPluginInterface pluginInterface,
         GameDataHolder dataHolder,
         IClientState clientState,
         IChatGui chatGui,
-        IDataManager dataManager)
-        : base("Equipment Browser###GearsetterBrowser")
+        IDataManager dataManager,
+        IGameInventory gameInventory,
+        IObjectTable objectTable)
+        : base("Equipment Browser".Loc() + "###GearsetterBrowser")
     {
         _plugin = plugin;
         _pluginInterface = pluginInterface;
@@ -54,6 +71,9 @@ internal sealed class EquipmentBrowserWindow : LWindow
         _clientState = clientState;
         _chatGui = chatGui;
         _dataManager = dataManager;
+        _gameInventory = gameInventory;
+        _objectTable = objectTable;
+        _gameInventory.InventoryChanged += OnInventoryChanged;
         _classJobNames = dataHolder.ClassJobNames
             .Where(x => x.ClassJob.AsJob() == x.ClassJob)
             .Select(x => x.Name)
@@ -72,12 +92,32 @@ internal sealed class EquipmentBrowserWindow : LWindow
         };
     }
 
+    public void Dispose()
+    {
+        _gameInventory.InventoryChanged -= OnInventoryChanged;
+    }
+
+    private void OnInventoryChanged(IReadOnlyCollection<InventoryEventArgs> events) => _inventoryDirty = true;
+
+    private Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> GetCachedInventoryItems()
+    {
+        if (_inventoryDirty || DateTime.UtcNow - _lastInventoryRefresh > MinInventoryRefreshInterval)
+        {
+            _cachedInventoryItems = _plugin.GetAllInventoryItems();
+            _inventoryDirty = false;
+            _lastInventoryRefresh = DateTime.UtcNow;
+        }
+
+        return _cachedInventoryItems;
+    }
+
     public override void OnOpen()
     {
-        if (_clientState.LocalPlayer != null)
-            _selectedClassJob = ((EClassJob)_clientState.LocalPlayer.ClassJob.RowId).AsJob();
+        if (_objectTable.LocalPlayer != null)
+            _selectedClassJob = ((EClassJob)_objectTable.LocalPlayer.ClassJob.RowId).AsJob();
 
         UpdateEquipmentCategories();
+        _inventoryDirty = true;
     }
 
     public override bool DrawConditions()
@@ -95,7 +135,7 @@ internal sealed class EquipmentBrowserWindow : LWindow
             UpdateEquipmentCategories();
         }
 
-        if (ImGui.Combo("Class/Job", ref currentClassJob, _classJobNames, _classJobNames.Length))
+        if (ImGui.Combo("Class/Job".Loc(), ref currentClassJob, _classJobNames, _classJobNames.Length))
         {
             _selectedClassJob = _classJobIds[currentClassJob];
             UpdateEquipmentCategories();
@@ -111,20 +151,20 @@ internal sealed class EquipmentBrowserWindow : LWindow
             currentCategory = 0;
         }
 
-        if (ImGui.Combo("Category", ref currentCategory, _equipmentCategoryNames, _equipmentCategoryNames.Length))
+        if (ImGui.Combo("Category".Loc(), ref currentCategory, _equipmentCategoryNames, _equipmentCategoryNames.Length))
             _selectedEquipmentCategory = _equipmentCategoryIds[currentCategory];
 
         var itemList = _dataHolder.GetItemList(_selectedClassJob, _selectedEquipmentCategory);
         if (itemList == null)
             return;
 
-        ImGui.Checkbox("Only show items matching your level", ref _onlyShowEquippableItems);
+        ImGui.Checkbox("Only show items matching your level".Loc(), ref _onlyShowEquippableItems);
         ImGui.SameLine();
-        ImGui.Checkbox("Only show owned items", ref _onlyShowOwnedItems);
+        ImGui.Checkbox("Only show owned items".Loc(), ref _onlyShowOwnedItems);
         ImGui.SameLine();
-        ImGui.Checkbox("Hide normal quality items", ref _hideNormalQualityItems);
+        ImGui.Checkbox("Hide normal quality items".Loc(), ref _hideNormalQualityItems);
 
-        Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> ownedItems = _plugin.GetAllInventoryItems();
+        Dictionary<(uint ItemId, bool Hq), List<EquipmentStats>> ownedItems = GetCachedInventoryItems();
         try
         {
             itemList.ApplyFromInventory(ownedItems, _onlyShowOwnedItems);
@@ -145,11 +185,11 @@ internal sealed class EquipmentBrowserWindow : LWindow
             if (ImGui.BeginTable("ItemList", 3 + (includeDamage ? 1 : 0) + itemList.SubstatPriorities.Count,
                     ImGuiTableFlags.Borders | ImGuiTableFlags.Resizable))
             {
-                ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.None, 300);
+                ImGui.TableSetupColumn("Name".Loc(), ImGuiTableColumnFlags.None, 300);
                 ImGui.TableSetupColumn("###ItemSource", ImGuiTableColumnFlags.WidthFixed, 20);
-                ImGui.TableSetupColumn("Level", ImGuiTableColumnFlags.WidthFixed, 50);
+                ImGui.TableSetupColumn("Level".Loc(), ImGuiTableColumnFlags.WidthFixed, 50);
                 if (includeDamage)
-                    ImGui.TableSetupColumn("Damage", ImGuiTableColumnFlags.WidthFixed, 50);
+                    ImGui.TableSetupColumn("Damage".Loc(), ImGuiTableColumnFlags.WidthFixed, 50);
                 foreach (var substat in itemList.SubstatPriorities)
                     ImGui.TableSetupColumn(_dataHolder.StatNames.GetValueOrDefault(substat, substat.ToString()),
                         ImGuiTableColumnFlags.WidthFixed, 50);

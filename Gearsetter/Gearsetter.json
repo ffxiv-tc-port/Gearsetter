@@ -1,10 +1,10 @@
 {
   "Name": "Gearsetter",
   "Author": "Liza Carvelli",
-  "Punchline": "Find gear upgrades",
-  "Description": "Browse through all gear pieces available for each class/job and show possible upgrades",
-  "RepoUrl": "https://git.carvel.li/liza/Gearsetter",
-  "IconUrl": "https://plugins.carvel.li/icons/Gearsetter.png",
+  "Punchline": "查詢各職業可換裝的裝備升級",
+  "Description": "瀏覽各職業可以裝備的所有裝備，並列出你目前套裝還能升級的部位。\n裝備瀏覽器可依職業與部位分類檢視，並提供「只顯示等級符合的裝備」、「只顯示已擁有的裝備」、「隱藏 NQ 裝備」等篩選，同時標示每件裝備的取得來源。\n指令：/gup 顯示所有套裝的可升級部位、/gbrowser 開關裝備瀏覽器。",
+  "RepoUrl": "https://github.com/ffxiv-tc-port/Gearsetter",
+  "IconUrl": "https://raw.githubusercontent.com/ffxiv-tc-port/DalamudPluginsTC/main/icons/Gearsetter.png",
   "Tags": [
     "gearset",
     "gearsets"

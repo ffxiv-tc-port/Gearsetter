@@ -14,4 +14,10 @@
 
 - 只做台服相容性修正與介面繁體中文化（職業名用台服官方譯名），功能與上游相同。
 
+## 安裝
+
+`/xlsettings` 開「Dalamud 設定」→「試驗性功能」→「第三方插件倉庫」，加入 `https://raw.githubusercontent.com/ffxiv-tc-port/DalamudPluginsTC/main/repo.json` 並啟用、儲存，再到「插件管理員」（`/xlplugins`）安裝；同一個插件只裝這裡的版本，不要同時裝上游版。
+
 原作者：[Liza Carvelli](https://github.com/VeraNala/Gearsetter)
+
+授權：上游未附授權。

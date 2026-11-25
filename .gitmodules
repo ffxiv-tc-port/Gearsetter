@@ -1,3 +1,4 @@
 [submodule "LLib"]
 	path = LLib
 	url = https://github.com/ffxiv-tc-port/LLib.git
+	branch = tc-7.30
